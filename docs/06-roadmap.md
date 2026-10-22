@@ -2,8 +2,8 @@
 
 | 단계 | 내용 | 산출물 | 상태 |
 |---|---|---|---|
-| 1 | 기획서 + 콘텐츠 DSL 스키마 | `docs/` 전체 | **진행 중** |
-| 2 | 데이터 파이프라인 | `pipeline/`, `data/build/`, `data/SOURCES.md` | 대기 |
+| 1 | 기획서 + 콘텐츠 DSL 스키마 | `docs/` 전체 | **완료** |
+| 2 | 데이터 파이프라인 | `pipeline/`, `data/build/`, `data/SOURCES.md` | **완료 (v0)** |
 | 3 | 엔진 v0 (출생 → 연간 진행 → 사망) + 통계 검증 테스트 | `packages/engine` | 대기 |
 | 4 | MVP UI (첫 화면 → 출생 → 인생 → 사망 기록), 한국어 | `apps/web` | 대기 |
 | 5 | 콘텐츠 확장 + AI 보조 생성 파이프라인 | `content/`, `tools/contentgen` | 대기 |

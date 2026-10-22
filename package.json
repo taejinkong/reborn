@@ -1,0 +1,17 @@
+{
+  "name": "reborn",
+  "private": true,
+  "type": "module",
+  "workspaces": ["packages/*", "apps/*"],
+  "scripts": {
+    "build:content": "node scripts/build-content.ts",
+    "test": "npm run build:content && npm test -w @reborn/engine",
+    "typecheck": "tsc -p packages/engine --noEmit",
+    "dev": "npm run build:content && npm run dev -w @reborn/demo",
+    "build": "npm run build:content && npm run build -w @reborn/demo"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "yaml": "^2.5.0"
+  }
+}

@@ -1,0 +1,23 @@
+# 직업. pct = 그 나라 소득분포에서 이 직업이 차지하는 백분위 범위.
+- { id: smallfarm, label: job.smallfarm, sector: agri, minEdu: none, pct: [0.02, 0.30], weight: 3, urban: false, formal: false }
+- { id: farmhand, label: job.farmhand, sector: agri, minEdu: none, pct: [0.04, 0.28], weight: 2, formal: false }
+- { id: fishing, label: job.fishing, sector: agri, minEdu: none, pct: [0.08, 0.40], weight: 0.6, formal: false }
+- { id: streetvendor, label: job.streetvendor, sector: service, minEdu: none, pct: [0.05, 0.35], weight: 1.5, urban: true, formal: false }
+- { id: domestic, label: job.domestic, sector: service, minEdu: none, pct: [0.05, 0.30], weight: 1, formal: false }
+- { id: construction, label: job.construction, sector: industry, minEdu: none, pct: [0.15, 0.50], weight: 1.6, formal: false }
+- { id: factory, label: job.factory, sector: industry, minEdu: primary, pct: [0.20, 0.55], weight: 2 }
+- { id: driver, label: job.driver, sector: service, minEdu: primary, pct: [0.20, 0.55], weight: 1.2, formal: false }
+- { id: shopclerk, label: job.shopclerk, sector: service, minEdu: secondary, pct: [0.20, 0.50], weight: 2 }
+- { id: cook, label: job.cook, sector: service, minEdu: primary, pct: [0.20, 0.55], weight: 1 }
+- { id: mechanic, label: job.mechanic, sector: industry, minEdu: secondary, pct: [0.30, 0.65], weight: 1 }
+- { id: shopowner, label: job.shopowner, sector: service, minEdu: primary, pct: [0.25, 0.80], weight: 0.8, formal: false }
+- { id: office, label: job.office, sector: service, minEdu: secondary, pct: [0.40, 0.75], weight: 1.5 }
+- { id: soldier, label: job.soldier, sector: public, minEdu: secondary, pct: [0.35, 0.65], weight: 0.4 }
+- { id: police, label: job.police, sector: public, minEdu: secondary, pct: [0.40, 0.70], weight: 0.4 }
+- { id: nurse, label: job.nurse, sector: public, minEdu: tertiary, pct: [0.50, 0.80], weight: 0.6 }
+- { id: teacher, label: job.teacher, sector: public, minEdu: tertiary, pct: [0.50, 0.80], weight: 0.8 }
+- { id: accountant, label: job.accountant, sector: service, minEdu: tertiary, pct: [0.60, 0.88], weight: 0.6 }
+- { id: engineer, label: job.engineer, sector: industry, minEdu: tertiary, pct: [0.65, 0.92], weight: 0.7 }
+- { id: developer, label: job.developer, sector: service, minEdu: tertiary, pct: [0.65, 0.95], weight: 0.5, urban: true }
+- { id: doctor, label: job.doctor, sector: public, minEdu: graduate, pct: [0.80, 0.98], weight: 0.25 }
+- { id: researcher, label: job.researcher, sector: public, minEdu: graduate, pct: [0.65, 0.92], weight: 0.25 }

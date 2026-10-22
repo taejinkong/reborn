@@ -83,12 +83,15 @@ outcomes:
       stats: { health: -8 }
       log: event.child_measles.recover
       tags: [illness, recovery]
-  - weight: "0.03 * country.childMortalityK"
+  - weight: 0.03
     effects:
-      die: measles
+      stats: { health: -15 }
+      causeHint: { cause: infection, k: 2 }   # 사건은 직접 죽이지 않는다 (아래 참고)
 tone: heavy          # light | neutral | heavy | sensitive — '무서운 장면 빼기'·교육 모드 필터
 source: [who.measles, unigme.u5mr]
 ```
+
+> **사건은 직접 죽이지 않는다.** 사망은 생명표 기반 사망 모델이 정한다. 사건이 따로 사망을 일으키면 생명표에 이미 반영된 위험을 두 번 세게 된다. 사건은 상태값(건강 등)과 사망 원인 가중치(`causeHint`)만 바꾼다.
 
 ## 3. 갈림길 (Decision)
 
@@ -202,5 +205,11 @@ ai:
 
 ## 8. 미결정 사항
 
-- [ ] 표현식 파서: 자체 구현(작은 Pratt 파서) vs `jsep` + 화이트리스트 평가기 → **자체 구현 권장**(의존성·보안 통제)
-- [ ] YAML 대신 TypeScript 객체로 작성할지 (타입 자동완성 장점) → AI 생성·비개발자 편집을 위해 **YAML 권장**
+- [x] 표현식 파서: **자체 구현** (`packages/engine/src/expr.ts`, 삼항 연산자 포함)
+- [x] 작성 형식: **YAML** (`content/`), 빌드 시 zod 검증 + 린트 (`npm run build:content`)
+
+## 9. v0 구현 메모
+
+- 구현된 효과: `stats`, `money(cash/debt/pct)`, `set/unset`, `edu`, `call`, `family(partner/marry/divorce)`, `condition`, `habit`, `schedule`, `causeHint`, `log`, `tags`
+- 내장 절차(`call`): `job.seek`, `job.quit`, `school.tertiary`, `school.graduate`, `retire`, `move.city`
+- 아직 없음: 연쇄 갈림길(`next`), 직업별 고유 사건(`events`), 도달성·확률 린트(시뮬레이션 기반)

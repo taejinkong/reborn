@@ -34,6 +34,8 @@ def main():
     if not 170 <= len(cs) <= 240:
         errors.append(f"국가 수 이상: {len(cs)}")
     for c in cs:
+        if not (isinstance(c.get("iso2"), str) and len(c["iso2"]) == 2):
+            errors.append(f"{c['id']} iso2={c.get('iso2')!r}")
         for f, (lo, hi) in RANGES.items():
             v = c[f]["v"] if c.get(f) else None
             if v is None or not lo <= v <= hi:

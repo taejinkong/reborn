@@ -1,0 +1,164 @@
+# 갈림길. auto = 자동 결정 모드의 선택 가중치.
+
+- id: edu.after_highschool
+  kind: decision
+  category: education
+  when: { age: [16, 20], if: "flags.hsGrad && edu.rank == 2 && !edu.inSchool" }
+  chance: 1
+  title: dec.after_hs.title
+  body: dec.after_hs.body
+  options:
+    - id: university
+      label: dec.after_hs.uni
+      hint: dec.after_hs.uni.hint
+      resolve:
+        chance:
+          # 중등 졸업자 중 고등교육 진학 비율 근사
+          base: "clamp(country.tertiaryEnroll / max(country.secondaryEnroll, 0.05), 0.02, 0.95)"
+          odds:
+            - { by: household, beta: 0.4, center: 3 }
+            - { by: stats.knowledge, beta: 0.05, center: 50 }
+        effects: { unset: [choosingPath] }
+        success: { call: school.tertiary, stats: { happiness: 5 }, log: dec.after_hs.uni.ok, tags: [new_start] }
+        fail: { call: job.seek, stats: { happiness: -6 }, log: dec.after_hs.uni.fail, tags: [setback] }
+    - id: work
+      label: dec.after_hs.work
+      hint: dec.after_hs.work.hint
+      resolve:
+        effects: { unset: [choosingPath], call: job.seek, log: dec.after_hs.work.ok, tags: [new_start, work] }
+  auto:
+    university: "stats.knowledge + household * 10"
+    work: "100 - stats.knowledge"
+  source: [uis.tertiary]
+
+- id: edu.graduate_school
+  kind: decision
+  category: education
+  when: { age: [22, 32], if: "edu.level == 'tertiary' && !edu.inSchool" }
+  chance:
+    base: 0.12
+    odds:
+      - { by: stats.knowledge, beta: 0.05, center: 60 }
+  title: dec.grad.title
+  body: dec.grad.body
+  options:
+    - id: go
+      label: dec.grad.go
+      resolve:
+        effects: { call: school.graduate, money: { cash: "-money.cash * 0.3" }, log: dec.grad.go.ok, tags: [new_start] }
+    - id: stay
+      label: dec.grad.stay
+      resolve:
+        effects: { log: dec.grad.stay.ok }
+  auto:
+    go: "stats.knowledge / 2"
+    stay: 50
+
+- id: love.meet
+  kind: decision
+  category: love
+  when: { age: [17, 55], once: false, cooldown: 2, if: "!family.partner" }
+  chance:
+    base: "age < 35 ? 0.22 : 0.08"
+    odds:
+      - { by: stats.relations, beta: 0.03, center: 55 }
+  title: dec.meet.title
+  body: dec.meet.body
+  options:
+    - id: date
+      label: dec.meet.date
+      resolve:
+        effects: { family: { partner: true }, stats: { happiness: 6 }, log: dec.meet.date.ok, tags: [love] }
+    - id: pass
+      label: dec.meet.pass
+      resolve:
+        effects: { log: dec.meet.pass.ok }
+  auto:
+    date: 80
+    pass: 20
+
+- id: love.marry
+  kind: decision
+  category: love
+  when: { age: [18, 60], once: false, cooldown: 2, if: "family.partner && !family.married" }
+  chance: 0.35
+  title: dec.marry.title
+  body: dec.marry.body
+  options:
+    - id: marry
+      label: dec.marry.yes
+      resolve:
+        effects: { family: { marry: true }, stats: { happiness: 8, relations: 5 }, money: { cash: "-money.cash * 0.2" }, log: dec.marry.yes.ok, tags: [love, milestone] }
+    - id: wait
+      label: dec.marry.wait
+      resolve:
+        chance: 0.7
+        success: { log: dec.marry.wait.ok }
+        fail: { family: { divorce: true }, stats: { happiness: -8 }, log: dec.marry.wait.breakup, tags: [loss] }
+  auto:
+    marry: 75
+    wait: 25
+
+- id: family.enough_kids
+  kind: decision
+  category: family
+  when: { age: [25, 45], if: "family.married && family.children >= 2" }
+  chance: 0.5
+  title: dec.kids.title
+  body: dec.kids.body
+  options:
+    - id: enough
+      label: dec.kids.enough
+      resolve:
+        effects: { set: { noMoreKids: true }, log: dec.kids.enough.ok }
+    - id: more
+      label: dec.kids.more
+      resolve:
+        effects: { log: dec.kids.more.ok }
+  auto:
+    enough: "family.children * 20"
+    more: "country.tfr * 20"
+
+- id: work.move_city
+  kind: decision
+  category: work
+  when: { age: [16, 40], if: "!urban && !edu.inSchool" }
+  chance:
+    base: 0.06
+    odds:
+      - { by: household, beta: 0.2, center: 3 }
+  title: dec.city.title
+  body: dec.city.body
+  options:
+    - id: move
+      label: dec.city.move
+      resolve:
+        effects: { call: [move.city, job.seek], stats: { relations: -4 }, log: dec.city.move.ok, tags: [new_start, migration] }
+    - id: stay
+      label: dec.city.stay
+      resolve:
+        effects: { stats: { relations: 2 }, log: dec.city.stay.ok }
+  auto:
+    move: "60 - household * 5"
+    stay: 50
+
+- id: health.checkup
+  kind: decision
+  category: health
+  when: { age: [40, 85], once: false, cooldown: 5 }
+  chance: 0.25
+  title: dec.checkup.title
+  body: dec.checkup.body
+  options:
+    - id: go
+      label: dec.checkup.go
+      hint: dec.checkup.go.hint
+      resolve:
+        effects: { stats: { health: 4 }, money: { cash: "-max(money.income * country.oopHealth * 0.05, 20)" }, log: dec.checkup.go.ok, tags: [care] }
+    - id: skip
+      label: dec.checkup.skip
+      resolve:
+        effects: { log: dec.checkup.skip.ok }
+  auto:
+    go: "60 + country.oopHealth * -30 + household * 5"
+    skip: 30

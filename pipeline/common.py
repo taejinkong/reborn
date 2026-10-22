@@ -34,5 +34,5 @@ def get_json(url: str):
 def write_json(path: Path, obj) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
-        json.dump(obj, f, ensure_ascii=False, separators=(",", ":"))
+        json.dump(obj, f, ensure_ascii=False, separators=(",", ":"), allow_nan=False)
         f.write("\n")

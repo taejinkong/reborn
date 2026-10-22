@@ -40,7 +40,8 @@ def rnd(x, n=3):
 def load_wpp_demo():
     cols = ["ISO3_code", "ISO2_code", "LocTypeName", "Location", "Time", "TPopulation1July", "Births", "TFR", "MAC", "SRB",
             "LEx", "LExMale", "LExFemale", "IMR", "Q5"]
-    d = pd.read_csv(WPP_DEMO, usecols=cols, low_memory=False)
+    # 나미비아 ISO2 코드 "NA"가 결측치로 읽히지 않도록 빈 칸만 결측으로 본다
+    d = pd.read_csv(WPP_DEMO, usecols=cols, low_memory=False, keep_default_na=False, na_values=[""])
     d = d[(d.LocTypeName == "Country/Area") & d.ISO3_code.notna()]
     return d
 

@@ -26,6 +26,10 @@ sys.family.son_born: "당신에게 아들이 태어났습니다. {n}번째 아�
 # ── 사망 원인 ──
 sys.death.neonatal: "당신은 태어난 첫해를 넘기지 못했습니다. 출생 직후의 합병증이었습니다."
 sys.death.infection: "당신은 {age}세에 감염병으로 세상을 떠났습니다."
+sys.death.hiv: "당신은 {age}세에 HIV/에이즈로 세상을 떠났습니다."
+sys.death.road: "당신은 {age}세에 교통사고로 세상을 떠났습니다."
+sys.death.homicide: "당신은 {age}세에 다른 사람의 폭력으로 세상을 떠났습니다."
+sys.death.suicide: "당신은 {age}세에 스스로 세상을 떠났습니다."
 sys.death.injury: "당신은 {age}세에 사고로 세상을 떠났습니다."
 sys.death.cardio: "당신은 {age}세에 심장과 혈관의 병으로 세상을 떠났습니다."
 sys.death.cancer: "당신은 {age}세에 암으로 세상을 떠났습니다."
@@ -34,6 +38,11 @@ sys.death.diabetes: "당신은 {age}세에 당뇨 합병증으로 세상을 떠�
 sys.death.dementia: "당신은 {age}세에 치매를 앓다 세상을 떠났습니다."
 sys.death.maternal: "당신은 {age}세에 아이를 낳다가 세상을 떠났습니다."
 sys.death.other: "당신은 {age}세에 세상을 떠났습니다."
+
+sys.help.suicide: "혼자 견디기 어려운 마음이 들 때는 도움을 청할 수 있습니다. 한국에서는 자살예방상담전화 109로 언제든 이야기할 수 있습니다."
+sys.labor.leave: "당신은 일을 그만두고 집안을 돌보기로 했습니다."
+sys.labor.home: "당신은 바깥일 대신 집안을 돌보며 지내게 되었습니다."
+sys.school.left: "당신은 학교를 그만두어야 했습니다."
 
 # ── 초점 ──
 focus.grow: "자라기"
@@ -90,6 +99,9 @@ ev.promotion: "당신은 일터에서 한 단계 올라섰습니다."
 ev.layoff: "당신이 일하던 곳이 사람을 줄였습니다. 당신도 그 안에 있었습니다."
 ev.small_luck: "뜻밖의 작은 행운이 당신에게 찾아왔습니다."
 ev.reunion: "오랜만에 가족이 한자리에 모였습니다."
+ev.child_marriage: "어른들이 정한 혼인으로, 당신은 어린 나이에 결혼했습니다. 학교는 그만두게 되었습니다."
+ev.child_marriage.school: "어른들이 정한 혼인으로, 당신은 어린 나이에 결혼했습니다. 학교는 계속 다닐 수 있었습니다."
+ev.divorce: "당신의 결혼 생활이 끝났습니다. 두 사람은 각자의 길을 가기로 했습니다."
 
 # ── 갈림길 ──
 dec.after_hs.title: "학교를 마친 뒤"

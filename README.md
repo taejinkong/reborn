@@ -13,6 +13,8 @@ npm install
 npm test            # 콘텐츠 빌드 + 엔진 테스트
 npm run typecheck
 npm run dev         # 엔진 데모 (http://localhost:5173)
+npm run calibrate   # 국가별 몬테카를로 보정 (약 8분, 콘텐츠·통계를 바꾼 뒤)
+npm run audit       # 시뮬레이션 vs 실제 통계 비교표 → docs/model-audit.md
 ```
 
 | 경로 | 내용 |

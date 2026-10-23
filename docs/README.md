@@ -11,6 +11,7 @@
 | [04-ai-narrative.md](04-ai-narrative.md) | AI 서사 생성 구조, 콘텐츠 생성 파이프라인, 안전장치 | 초안 |
 | [05-data-pipeline.md](05-data-pipeline.md) | 통계 데이터 출처, 필드 정의, 라이선스 체크 | 초안 |
 | [06-roadmap.md](06-roadmap.md) | 단계별 로드맵과 현재 진행 상황 | 진행 중 |
+| [model-audit.md](model-audit.md) | 시뮬레이션 결과 vs 실제 통계 비교표 (자동 생성) | `npm run audit` |
 
 ## 결정 기록
 

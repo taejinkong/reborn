@@ -44,8 +44,9 @@
 - id: health.start_smoking
   kind: happening
   category: health
-  when: { age: [14, 30], if: "!habits.smoker && !did('health.quit_smoking')" }
-  chance: "country.smoking / 9"
+  when: { age: [14, 30], once: false, if: "!habits.smoker && !did('health.quit_smoking')" }
+  # 국가 흡연율 기준, 보정으로 15세 이상 흡연율을 맞춘다
+  chance: rates.smoke
   outcomes:
     - effects: { habit: { smoker: true }, log: ev.start_smoking, tags: [habit] }
   tone: neutral
@@ -56,7 +57,7 @@
   category: health
   when: { age: [20, 90], if: "habits.smoker" }
   chance:
-    base: 0.04
+    base: rates.quitSmoke
     odds:
       - { by: stats.health, beta: -0.03, center: 60 }
   outcomes:
@@ -79,12 +80,12 @@
 - id: health.diabetes
   kind: happening
   category: health
-  when: { age: [30, 95], if: "!has('diabetes')" }
+  when: { age: [30, 95], once: false, if: "!has('diabetes')" }
+  # 국가 당뇨 유병률 기준, 보정으로 20~79세 유병률을 맞춘다
   chance:
-    base: 0.01
+    base: rates.diabetes
     odds:
       - { by: stats.health, beta: -0.03, center: 60 }
-      - { if: "country.income == 'HIC' || country.income == 'UMC'", x: 1.3 }
   outcomes:
     - effects: { condition: { add: diabetes }, causeHint: { cause: diabetes, k: 3 }, stats: { health: -5 }, log: ev.diabetes, tags: [illness] }
   tone: neutral
@@ -131,3 +132,27 @@
   outcomes:
     - effects: { stats: { relations: 5, happiness: 3 }, log: ev.reunion, tags: [family] }
   tone: light
+
+- id: family.child_marriage
+  kind: happening
+  category: family
+  # 아이가 고르는 일이 아니므로 갈림길이 아닌 사건이다. 국가 조혼율에 보정으로 맞춘다.
+  when: { age: [12, 17], if: "sex == 'F' && !family.partner" }
+  chance: rates.childUnion
+  outcomes:
+    - weight: 7
+      effects: { family: { partner: true, marry: true }, call: school.leave, stats: { happiness: -6 }, log: ev.child_marriage, tags: [marriage, loss] }
+    - weight: 3
+      effects: { family: { partner: true, marry: true }, stats: { happiness: -4 }, log: ev.child_marriage.school, tags: [marriage] }
+  tone: sensitive
+  source: [unicef.child_marriage]
+
+- id: family.divorce
+  kind: happening
+  category: family
+  when: { age: [18, 90], once: false, if: "family.married" }
+  chance: rates.divorce
+  outcomes:
+    - effects: { family: { divorce: true }, set: { divorced: true }, stats: { happiness: -10, relations: -4 }, log: ev.divorce, tags: [loss, family] }
+  tone: heavy
+  source: [wmd2019.divorced]

@@ -20,6 +20,17 @@ INDICATORS = {
     "smokingM": "SH.PRV.SMOK.MA",          # 남성 흡연율 (%)
     "oopHealth": "SH.XPD.OOPC.CH.ZS",      # 의료비 본인부담 비율 (%)
     "childMarriage": "SP.M18.2024.FE.ZS",  # 18세 전 결혼한 20~24세 여성 비율 (%)
+    # 사망 원인 (WHO Global Health Estimates, WDI 재배포)
+    "deathCommShare": "SH.DTH.COMM.ZS",    # 감염병·모성·주산기·영양 사망 비중 (%)
+    "deathNcdShare": "SH.DTH.NCOM.ZS",     # 비감염성 질환 사망 비중 (%)
+    "deathInjShare": "SH.DTH.INJR.ZS",     # 손상(사고·폭력) 사망 비중 (%)
+    "ncd3070": "SH.DYN.NCOM.ZS",           # 30~70세 사이 심혈관·암·당뇨·만성호흡기 질환 사망 확률 (%)
+    "suicide": "SH.STA.SUIC.P5",           # 자살률 (10만 명당)
+    "diabetesPrev": "SH.STA.DIAB.ZS",      # 당뇨 유병률 (20~79세, %)
+    # 노동 (ILO 모형 추정, WDI 재배포)
+    "lfpF": "SL.TLF.ACTI.FE.ZS",           # 여성 경제활동참가율 (15~64세, %)
+    "lfpM": "SL.TLF.ACTI.MA.ZS",           # 남성 경제활동참가율 (15~64세, %)
+    "unemployment": "SL.UEM.TOTL.ZS",      # 실업률 (%)
 }
 
 API = "https://api.worldbank.org/v2"

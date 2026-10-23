@@ -10,6 +10,8 @@ RANGES = {
     "primaryEnroll": (0, 100), "secondaryEnroll": (0, 100), "tertiaryEnroll": (0, 200), "literacy": (0, 100),
     "schoolYears": (0, 15), "mmr": (0, 2000), "hivPrev": (0, 40), "homicide": (0, 150), "roadDeaths": (0, 80),
     "smokingF": (0, 70), "smokingM": (0, 90), "oopHealth": (0, 100), "childMarriage": (0, 90),
+    "deathCommShare": (0, 90), "deathNcdShare": (5, 100), "deathInjShare": (0, 60), "ncd3070": (3, 60),
+    "suicide": (0, 60), "diabetesPrev": (0, 40), "lfpF": (3, 95), "lfpM": (20, 100), "unemployment": (0, 40),
 }
 
 
@@ -50,7 +52,7 @@ def main():
             if diff > 3.0 and c["id"] not in CRISIS_2023:  # 2023 생명표 vs 2025 추계, 소수 연령 근사 차이 허용
                 errors.append(f"{c['id']} {sex} e0 차이 {diff:.1f}년")
 
-        for f, (lo, hi) in (("everMarried", (20, 100)), ("marriageAge", (15, 40))):
+        for f, (lo, hi) in (("everMarried", (20, 100)), ("marriageAge", (15, 40)), ("divorced", (0, 50))):
             for sx in "FM":
                 v = c[f]["v"][sx]
                 if not lo <= v <= hi:
@@ -60,7 +62,7 @@ def main():
         if len(a) != 7 or abs(tfr_from_asfr - c["tfr"]["v"]) > 0.1:  # 10~14세·50세 출산분 제외 차이
             errors.append(f"{c['id']} asfr 합 {tfr_from_asfr:.2f} vs tfr {c['tfr']['v']}")
 
-    est = sum(1 for c in cs for f in list(RANGES) + ["everMarried", "marriageAge"] if c.get(f) and c[f].get("est"))
+    est = sum(1 for c in cs for f in list(RANGES) + ["everMarried", "marriageAge", "divorced"] if c.get(f) and c[f].get("est"))
     print(f"국가 {len(cs)}개, 추정값 {est}개, 생명표 e0 최대 차이 {worst:.2f}년")
     births = sum(c["births"]["v"] for c in cs)
     print(f"연간 출생아 합계 {births:,}명")

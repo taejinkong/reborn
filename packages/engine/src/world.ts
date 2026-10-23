@@ -36,7 +36,8 @@ export class World {
     this.focus = new Map(this.content.focus.map((f) => [f.id, f]));
     this.jobs = new Map(this.content.jobs.map((j) => [j.id, j]));
     this.calibrationFile = input.calibration ?? null;
-    this.calib = { ...(input.calibration?.countries ?? {}) };
+    // 예전 보정 파일에 없는 계수는 기본값으로 채운다
+    this.calib = Object.fromEntries(Object.entries(input.calibration?.countries ?? {}).map(([id, c]) => [id, { ...defaultCalibration(), ...c }]));
   }
 
   /** 국가 보정 계수. 보정 스크립트는 setCalibration으로 바꿔 가며 반복한다. */

@@ -7,6 +7,7 @@
     "build:content": "node scripts/build-content.ts",
     "test": "npm run build:content && npm test -w @reborn/engine",
     "calibrate": "npm run build:content && node scripts/calibrate.ts",
+    "audit": "npm run build:content && node scripts/audit.ts",
     "typecheck": "tsc -p packages/engine --noEmit",
     "dev": "npm run build:content && npm run dev -w @reborn/demo",
     "build": "npm run build:content && npm run build -w @reborn/demo"

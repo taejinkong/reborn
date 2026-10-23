@@ -5,8 +5,8 @@ import { EDU_LEVELS } from './content.ts';
 import type { Country } from './data.ts';
 import { compile, type Expr, type Scope } from './expr.ts';
 import { clamp, lognormalIncome, oddsNormalizer, scaleOdds } from './math.ts';
-import { unionHazard } from './calibration.ts';
-import { deathProbability, drawCause, expectedHealth, mortalityMultiplier, rawMortalityMultiplier } from './mortality.ts';
+import { jobFindProb, laborShare, personRates } from './calibration.ts';
+import { SENSITIVE_CAUSES, deathProbability, drawCause, expectedHealth, mortalityMultiplier, rawMortalityMultiplier } from './mortality.ts';
 import { Rng } from './rng.ts';
 import type { Kin, LogEntry, Person, StatKey, Tone } from './state.ts';
 import type { World } from './world.ts';
@@ -17,6 +17,8 @@ const MAX_HAPPENINGS = 3;
 const YEAR_SEC = [12, 120] as const;
 /** 노동소득이 1인당 GDP에서 차지하는 비율 (근사) */
 const LABOR_SHARE = 0.6;
+/** 경제활동 상태를 해마다 다시 정하는 비율 */
+const LABOR_TURNOVER = 0.15;
 
 export interface YearResult {
   age: number;
@@ -97,10 +99,8 @@ export class Life {
         focus: p.focus,
         retired: p.retired,
         migrant: p.country !== p.born,
-        rates: {
-          /** 올해 결혼 상대를 만날 확률 (국가 결혼 통계 + 보정) */
-          union: unionHazard(p.age, c.everMarried[p.sex], c.marriageAge[p.sex], this.world.calibration(p.country).union[p.sex]),
-        },
+        /** 올해 확률들 (국가 통계 + 보정): union, childUnion, divorce, smoke, diabetes */
+        rates: personRates(p, c, this.world.calibration(p.country)),
       },
       fns: {
         has: (id) => p.conditions.includes(id as string),
@@ -269,13 +269,13 @@ export class Life {
       const drift = p.age < 45 ? 0.006 : p.age < 55 ? 0.002 : -0.002;
       p.money.pct = clamp(p.money.pct + drift + this.rng.normal() * 0.01, 0.01, 0.995);
       p.money.income = lognormalIncome(mean, c.gini, p.money.pct);
-      const retireAge = c.income === 'HIC' || c.income === 'UMC' ? 65 : 70;
-      if (p.age >= retireAge || (p.age >= 55 && p.stats.health < 30)) this.call('retire');
-    } else if (p.flags.choosingPath && p.age < 21) {
-      // 진로를 고르는 중
-    } else if (!p.job && !p.retired && !p.edu.school && p.age >= 16 && p.age < 60) {
+      if (p.age >= this.retireAge() || (p.age >= 55 && p.stats.health < 30)) this.call('retire');
+    }
+    if (p.flags.choosingPath && p.age < 21) {
+      // 진로 갈림길을 기다리는 중
+    } else if (!p.retired && !p.edu.school && p.age >= 15 && p.age < this.retireAge()) {
       delete p.flags.choosingPath;
-      if (this.rng.chance(p.age < 18 ? 0.3 : 0.6)) this.call('job.seek');
+      this.laborYear();
     }
     if (p.money.income > 0) {
       const saveRate = 0.03 + 0.17 * p.money.pct;
@@ -287,6 +287,34 @@ export class Life {
       p.money.debt = p.money.debt * 1.05 - pay;
       p.money.cash -= pay;
     }
+  }
+
+  private retireAge(): number {
+    const c = this.country;
+    return c.income === 'HIC' || c.income === 'UMC' ? 65 : 70;
+  }
+
+  /**
+   * 경제활동 상태와 구직. 해마다 일부가 경제활동을 떠나고 돌아오며(정상 상태 확률 = 보정된 참가율),
+   * 경제활동 중이면서 일이 없는 사람은 일자리를 찾는다.
+   */
+  private laborYear(): void {
+    const p = this.p, c = this.country;
+    const cal = this.world.calibration(p.country);
+    const share = laborShare(c, p.sex, cal.lfp[p.sex]);
+    if (p.flags.outOfLabor === undefined) {
+      p.flags.outOfLabor = !this.rng.chance(share);
+    } else if (!p.flags.outOfLabor && this.rng.chance(LABOR_TURNOVER * (1 - share))) {
+      p.flags.outOfLabor = true;
+      if (p.job) {
+        p.job = null;
+        p.money.income = 0;
+        this.log('sys.labor.leave', 'neutral');
+      }
+    } else if (p.flags.outOfLabor && this.rng.chance(LABOR_TURNOVER * share)) {
+      p.flags.outOfLabor = false;
+    }
+    if (!p.flags.outOfLabor && !p.job && this.rng.chance(jobFindProb(p.age, cal.find))) this.call('job.seek');
   }
 
   private findJob(): JobDef | null {
@@ -323,7 +351,13 @@ export class Life {
     }
     const pt = p.family.partner;
     if (pt) {
-      if (kinDies(pt)) { pt.alive = false; p.family.partner = null; this.log('sys.family.partner_died', 'heavy', undefined, ['loss']); this.addStat('happiness', -18); }
+      if (kinDies(pt)) {
+        pt.alive = false;
+        if (pt.married) p.flags.widowed = true;
+        p.family.partner = null;
+        this.log('sys.family.partner_died', 'heavy', undefined, ['loss']);
+        this.addStat('happiness', -18);
+      }
       else ageKin(pt);
     }
     for (const kid of p.family.children) {
@@ -339,6 +373,7 @@ export class Life {
       if (this.rng.chance(pKid)) {
         const sex = this.rng.chance(c.maleShare) ? 'M' : 'F';
         p.family.children.push({ age: 0, sex, alive: true });
+        if (p.sex === 'F') p.flags.lastBirthYear = p.year;
         this.log(sex === 'F' ? 'sys.family.daughter_born' : 'sys.family.son_born', 'light', { n: p.family.children.length }, ['family', 'joy']);
         this.addStat('happiness', 8);
         this.addStat('relations', 5);
@@ -457,7 +492,12 @@ export class Life {
       const age = Math.round(clamp(p.age + (p.sex === 'F' ? 3 : -3) + this.rng.normal() * 3, 16, 90));
       p.family.partner = { age, sex: p.sex === 'F' ? 'M' : 'F', alive: true, married: false };
     }
-    if (ef.family?.marry && p.family.partner) { p.family.partner.married = true; p.flags.everMarried = true; }
+    if (ef.family?.marry && p.family.partner) {
+      p.family.partner.married = true;
+      p.flags.everMarried = true;
+      p.flags.marriedAge = p.age;
+      delete p.flags.widowed;
+    }
     if (ef.family?.divorce) p.family.partner = null;
     if (ef.condition?.add && !p.conditions.includes(ef.condition.add)) p.conditions.push(ef.condition.add);
     if (ef.condition?.remove) p.conditions = p.conditions.filter((x) => x !== ef.condition!.remove);
@@ -473,6 +513,15 @@ export class Life {
     const p = this.p;
     switch (name) {
       case 'job.seek': {
+        // 갈림길·사건이 부른 구직도 경제활동 상태를 따른다 (그래야 참가율 보정이 유지된다)
+        if (p.flags.outOfLabor === undefined) {
+          const cal = this.world.calibration(p.country);
+          p.flags.outOfLabor = !this.rng.chance(laborShare(this.country, p.sex, cal.lfp[p.sex]));
+        }
+        if (p.flags.outOfLabor) {
+          this.log('sys.labor.home', 'neutral');
+          return;
+        }
         const j = this.findJob();
         if (j) this.startJob(j);
         return;
@@ -499,6 +548,9 @@ export class Life {
         this.log('sys.job.retire', 'light', undefined, ['milestone']);
         return;
       }
+      case 'school.leave':
+        if (p.edu.school) { p.edu.school = null; this.log('sys.school.left', 'heavy'); }
+        return;
       case 'move.city':
         if (!p.urban) { p.urban = true; this.log('sys.move.city', 'neutral'); }
         return;
@@ -515,9 +567,12 @@ export class Life {
     this.observe?.({ type: 'mortality', age: p.age, sex: p.sex, raw: rawMortalityMultiplier(p, c) });
     const pDie = deathProbability(q, m);
     if (!this.rng.chance(pDie)) return false;
-    const cause = drawCause(p, c, this.rng);
+    const cause = drawCause(p, c, this.rng, this.world.calibration(p.country));
     p.dead = { age: p.age, year: p.year, cause };
-    this.log(`sys.death.${cause}`, 'heavy', { age: p.age }, ['death']);
+    const sensitive = SENSITIVE_CAUSES.includes(cause);
+    this.log(`sys.death.${cause}`, sensitive ? 'sensitive' : 'heavy', { age: p.age }, ['death']);
+    // 장면은 그리지 않고 도움받을 곳을 함께 남긴다
+    if (cause === 'suicide') this.log('sys.help.suicide', 'sensitive');
     return true;
   }
 

@@ -34,6 +34,8 @@ WPP_LT = {"F": RAW / "WPP2024_Life_Table_Complete_Medium_Female_1950-2023.csv.gz
 
 # WDI 값 중 이 연도보다 오래된 값은 쓰지 않는다
 WB_MIN_YEAR = 2010
+# 최신 연도 대신 특정 연도를 쓰는 지표. 사망 원인 비중은 2020~2021년 코로나19 사망이 섞여 있어 2019년을 쓴다.
+WB_PREFER_YEAR = {"deathCommShare": 2019, "deathNcdShare": 2019, "deathInjShare": 2019}
 
 
 def rnd(x, n=3):
@@ -55,8 +57,9 @@ def load_wb():
     for field, code in INDICATORS.items():
         rows = json.load(open(RAW / "wb" / f"{code}.json", encoding="utf-8"))
         best = {}
+        want = WB_PREFER_YEAR.get(field)
         for r in rows:
-            if r["year"] < WB_MIN_YEAR:
+            if r["year"] < WB_MIN_YEAR or (want and r["year"] > want):
                 continue
             if r["iso3"] not in best or r["year"] > best[r["iso3"]]["year"]:
                 best[r["iso3"]] = r
@@ -86,7 +89,12 @@ def load_marriage(m49_to_iso3):
     smam = pd.read_excel(WMD, "SMAM", header=2)
     smam = smam[smam.YearEnd >= WMD_MIN_YEAR]
     out = {}
-    for name, df in (("everMarried", ever), ("marriageAge", smam)):
+    # 45~49세 중 이혼·별거 상태 비율 (재혼한 사람은 빠지므로 실제 이혼 경험보다 낮다)
+    ms = pd.read_excel(WMD, "MARITAL_STATUS_BY_AGE", header=2)
+    ms = ms[(ms.AgeGroup == "[45-49]") & (ms.YearEnd >= WMD_MIN_YEAR) &
+            ms.MaritalStatus.isin(["Divorced", "Separated", "Divorced or Separated"])]
+    ms = ms.groupby(["ISO code", "Sex", "YearEnd", "DataCatalog ID"], as_index=False).DataValue.sum()
+    for name, df in (("everMarried", ever), ("marriageAge", smam), ("divorced", ms)):
         df = df.sort_values("YearEnd")
         for (m49, sex), g in df.groupby(["ISO code", "Sex"]):
             iso = m49_to_iso3.get(int(m49))
@@ -134,7 +142,7 @@ def build_countries():
             # 15-19, 20-24, ..., 45-49세 연령별 출산율 (여성 1,000명당)
             "asfr": {"v": asfr[iso], "y": NOW_YEAR, "src": src},
         }
-        for field in ("everMarried", "marriageAge"):
+        for field in ("everMarried", "marriageAge", "divorced"):
             m = marriage.get(iso, {}).get(field, {})
             c[field] = ({"v": {s: m[s][0] for s in "FM"}, "y": max(m["F"][1], m["M"][1]), "src": "wmd2019"}
                         if "F" in m and "M" in m else None)
@@ -144,7 +152,7 @@ def build_countries():
         out[iso] = c
 
     fill_missing(out)
-    fill_missing_sexed(out, ("everMarried", "marriageAge"))
+    fill_missing_sexed(out, ("everMarried", "marriageAge", "divorced"))
     return out
 
 
@@ -156,25 +164,27 @@ def fill_missing_sexed(out, fields):
             if c[field]:
                 continue
             pool = ([x for x in have if (x["region"], x["income"]) == (c["region"], c["income"])]
+                    or [x for x in have if x["income"] == c["income"]]
                     or [x for x in have if x["region"] == c["region"]] or have)
             v = {s: round(median(x[field]["v"][s] for x in pool), 1) for s in "FM"}
-            c[field] = {"v": v, "y": None, "src": "est:region-median", "est": True}
+            c[field] = {"v": v, "y": None, "src": "est:group-median", "est": True}
 
 
 def fill_missing(out):
-    """결측치: 같은 지역·소득그룹 중앙값 → 같은 지역 중앙값 → 전체 중앙값. est=True 표시."""
+    """결측치: 같은 지역·소득그룹 → 같은 소득그룹 → 같은 지역 → 전체 중앙값. est=True 표시."""
     for field in INDICATORS:
         have = [c for c in out.values() if c[field]]
-        by_ri, by_r = {}, {}
+        by_ri, by_i, by_r = {}, {}, {}
         for c in have:
             by_ri.setdefault((c["region"], c["income"]), []).append(c[field]["v"])
+            by_i.setdefault(c["income"], []).append(c[field]["v"])
             by_r.setdefault(c["region"], []).append(c[field]["v"])
         everyone = [c[field]["v"] for c in have]
         for c in out.values():
             if c[field]:
                 continue
-            pool = by_ri.get((c["region"], c["income"])) or by_r.get(c["region"]) or everyone
-            c[field] = {"v": round(median(pool), 2), "y": None, "src": "est:region-median", "est": True}
+            pool = by_ri.get((c["region"], c["income"])) or by_i.get(c["income"]) or by_r.get(c["region"]) or everyone
+            c[field] = {"v": round(median(pool), 2), "y": None, "src": "est:group-median", "est": True}
 
 
 def build_lifetables(isos, years):

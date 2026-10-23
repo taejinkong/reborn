@@ -1,147 +1,118 @@
 // 몬테카를로 보정: 국가마다 많은 삶을 자동으로 살려 보고, 시뮬레이션 결과가 통계와 같아지도록
-// 사망 배수 평균·결혼 위험률 배수·출산 배수를 반복해서 고친다. 결과는 data/build/calibration.json.
+// 보정 계수(calibration.ts의 CountryCalibration)를 반복해서 고친다. 결과는 data/build/calibration.json.
 //
-//   node scripts/calibrate.ts [livesPerSex=1500] [iterations=4]
+//   node scripts/calibrate.ts [livesPerSex=1500] [iterations=6]
 import { createHash } from 'node:crypto';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { availableParallelism } from 'node:os';
-import { join } from 'node:path';
 import { Worker, isMainThread, parentPort, workerData } from 'node:worker_threads';
-import { MORT_BANDS, defaultCalibration, mortBand, type CalibrationFile, type CountryCalibration } from '../packages/engine/src/calibration.ts';
-import { Life } from '../packages/engine/src/life.ts';
+import { defaultCalibration, type CalibrationFile, type CauseGroup, type CountryCalibration } from '../packages/engine/src/calibration.ts';
+import { toOdds } from '../packages/engine/src/math.ts';
 import type { Sex } from '../packages/engine/src/state.ts';
-import { World } from '../packages/engine/src/world.ts';
-
-const ROOT = join(import.meta.dirname, '..');
-const FILES = {
-  countries: join(ROOT, 'data/build/countries.json'),
-  lifetable: join(ROOT, 'data/build/lifetables/2023.json'),
-  content: join(ROOT, 'content/build/content.json'),
-};
-const OUT = join(ROOT, 'data/build/calibration.json');
+import type { World } from '../packages/engine/src/world.ts';
+import { CALIBRATION_FILE, INPUT_FILES, e0Of, lifetableE0, loadWorld, measureCountry, rate, tfrOf, type Measures } from './measure.ts';
 
 interface Job { isos: string[]; n: number; iterations: number }
-export interface CountryResult {
-  iso: string;
-  cal: CountryCalibration;
-  check: { e0: Record<Sex, number>; e0Target: Record<Sex, number>; tfr: number; tfrTarget: number; married: Record<Sex, number>; marriedTarget: Record<Sex, number> };
-}
 
-/** 생명표로 계산한 출생 시 기대수명 */
-function lifetableE0(q: number[]): number {
-  let alive = 1, total = 0;
-  for (const qx of q) {
-    const d = alive * qx;
-    total += alive - d + d * 0.5;
-    alive -= d;
-  }
-  return total;
+export interface Check {
+  e0: Record<Sex, number>; e0Target: Record<Sex, number>;
+  tfr: number; tfrTarget: number;
+  married: Record<Sex, number>; marriedTarget: Record<Sex, number>;
+  childMarriage: number; childMarriageTarget: number;
+  divorced: number; divorcedTarget: number;
+  lfp: Record<Sex, number>; lfpTarget: Record<Sex, number>;
+  unemployment: number; unemploymentTarget: number;
+  smoking: Record<Sex, number>; smokingTarget: Record<Sex, number>;
+  diabetes: number; diabetesTarget: number;
+  causes: Record<CauseGroup, number>; causesTarget: Record<CauseGroup, number>;
 }
+interface CountryResult { iso: string; cal: CountryCalibration; check: Check }
 
-interface Sim {
-  mortSum: Record<Sex, number[]>;
-  mortN: Record<Sex, number[]>;
-  births: number[];
-  womanYears: number[];
-  married: Record<Sex, [number, number]>;
-  deathAge: Record<Sex, [number, number]>;
-}
-
-function simulate(world: World, iso: string, n: number, tag: string): Sim {
-  const zeros = () => MORT_BANDS.map(() => 0);
-  const s: Sim = {
-    mortSum: { F: zeros(), M: zeros() }, mortN: { F: zeros(), M: zeros() },
-    births: Array(50).fill(0), womanYears: Array(50).fill(0),
-    married: { F: [0, 0], M: [0, 0] }, deathAge: { F: [0, 0], M: [0, 0] },
-  };
-  for (const sex of ['F', 'M'] as Sex[]) {
-    for (let i = 0; i < n; i++) {
-      const l = Life.born(world, { seed: `cal:${tag}:${iso}:${sex}:${i}`, country: iso, sex });
-      l.observe = (o) => {
-        const b = mortBand(o.age);
-        s.mortSum[o.sex][b] += o.raw;
-        s.mortN[o.sex][b]++;
-      };
-      while (l.alive) {
-        const age = l.p.age;
-        if (age === 47) {
-          s.married[sex][0] += l.p.flags.everMarried ? 1 : 0;
-          s.married[sex][1]++;
-        }
-        const kids = l.p.family.children.length;
-        l.step({ autoFocus: true });
-        if (l.p.pending) l.autoChoose();
-        // 출생은 그 해 시작 나이의 여성에게 센다 (살아서 한 해를 다 보낸 경우만 노출로 친다)
-        if (sex === 'F' && age >= 15 && age <= 49 && l.alive) {
-          s.womanYears[age]++;
-          s.births[age] += l.p.family.children.length - kids;
-        }
-      }
-      s.deathAge[sex][0] += l.p.dead!.age + 0.5;
-      s.deathAge[sex][1]++;
-    }
-  }
-  return s;
-}
-
-const simTfr = (s: Sim) => s.births.reduce((t, b, a) => t + (s.womanYears[a] ? b / s.womanYears[a] : 0), 0);
-const ratio = (x: [number, number]) => (x[1] ? x[0] / x[1] : NaN);
+const SEXES: Sex[] = ['F', 'M'];
+const GROUPS: CauseGroup[] = ['comm', 'ncd', 'inj'];
 const clampR = (x: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, x));
+const finite = (x: number, fallback = 1) => (Number.isFinite(x) && x > 0 ? x : fallback);
+/** 누적 위험률 비율: 목표 비율을 만들려면 위험률을 얼마나 키워야 하나 */
+const hazardRatio = (target: number, got: number) =>
+  Math.log(1 - clampR(target, 0.001, 0.995)) / Math.log(1 - clampR(got, 0.001, 0.995));
+/** 오즈 비율 */
+const oddsRatio = (target: number, got: number) => toOdds(clampR(target, 0.01, 0.99)) / toOdds(clampR(got, 0.01, 0.99));
+
+function update(world: World, iso: string, cal: CountryCalibration, m: Measures): void {
+  const c = world.country(iso);
+  for (const sex of SEXES) {
+    // 사망: 연령대별 보정 전 배수의 평균. 표본이 적은 구간은 이전 값을 유지한다
+    m.mortN[sex].forEach((cnt, b) => { if (cnt >= 50) cal.mort[sex][b] = m.mortSum[sex][b] / cnt; });
+    cal.union[sex] *= clampR(finite(hazardRatio(c.everMarried[sex], rate(m.married47[sex]))), 0.5, 3);
+    cal.lfp[sex] *= clampR(finite(oddsRatio(c.lfp[sex], rate(m.inLabor[sex]))), 0.3, 3);
+    // 흡연율이 아주 낮은 나라는 비율 대신 작은 값으로 둔다
+    cal.smoke[sex] *= c.smoking[sex] < 0.003 ? 1 : clampR(finite(c.smoking[sex] / rate(m.smoking[sex]), 2), 0.5, 2);
+    cal.smoke[sex] = clampR(cal.smoke[sex], 0.05, 40);
+  }
+  const tfr = tfrOf(m);
+  if (tfr > 0) cal.fert *= clampR(c.tfr / tfr, 0.5, 2);
+  cal.childUnion *= c.childMarriage < 0.003 ? 0.5 : clampR(finite(hazardRatio(c.childMarriage, rate(m.childMarriage)), 2), 0.3, 3);
+  cal.childUnion = clampR(cal.childUnion, 0.01, 20);
+  const divTarget = c.divorced.F / 100;
+  cal.divorce *= divTarget < 0.003 ? 0.5 : clampR(finite(divTarget / rate(m.divorced47.F), 2), 0.4, 2.5);
+  cal.divorce = clampR(cal.divorce, 0.01, 30);
+  // 실업률이 높게 나오면 구직 성공을 쉽게
+  cal.find *= clampR(finite(oddsRatio(rate(m.unemployed), c.unemployment)), 0.3, 3);
+  cal.find = clampR(cal.find, 0.002, 50);
+  cal.diabetes *= clampR(finite(c.diabetesPrev / rate(m.diabetes), 2), 0.5, 2);
+  // 사망 원인 3대 분류: 비중 비율만큼 가중치를 고친다
+  for (const g of GROUPS) cal.cause[g] *= clampR(finite(c.deathShare[g] / (m.causes[g] / m.deaths), 2), 0.3, 3);
+  const mean = GROUPS.reduce((s, g) => s + cal.cause[g], 0) / 3;
+  for (const g of GROUPS) cal.cause[g] /= mean;
+}
 
 function calibrateCountry(world: World, iso: string, n: number, iterations: number): CountryResult {
   const c = world.country(iso);
   const cal = defaultCalibration();
   world.setCalibration(iso, cal);
   for (let it = 0; it < iterations; it++) {
-    const s = simulate(world, iso, n, `it${it}`);
-    for (const sex of ['F', 'M'] as Sex[]) {
-      // 사망: 연령대별 보정 전 배수의 평균. 표본이 적은 구간은 이전 값을 유지한다
-      s.mortN[sex].forEach((cnt, b) => { if (cnt >= 50) cal.mort[sex][b] = s.mortSum[sex][b] / cnt; });
-      // 결혼: 누적 위험률 비율만큼 배수를 고친다
-      const target = Math.min(c.everMarried[sex], 0.995);
-      const got = clampR(ratio(s.married[sex]), 0.01, 0.995);
-      if (Number.isFinite(got)) cal.union[sex] *= clampR(Math.log(1 - target) / Math.log(1 - got), 0.5, 3);
-    }
-    const tfr = simTfr(s);
-    if (tfr > 0) cal.fert *= clampR(c.tfr / tfr, 0.5, 2);
+    update(world, iso, cal, measureCountry(world, iso, n, `cal:it${it}`));
     world.setCalibration(iso, cal);
   }
   // 검증: 보정에 쓰지 않은 시드로 다시 돌린다
-  const v = simulate(world, iso, n, 'check');
-  const lt = JSON.parse(readFileSync(FILES.lifetable, 'utf8')).q[iso];
+  const v = measureCountry(world, iso, n, 'cal:check');
+  const lt = JSON.parse(readFileSync(INPUT_FILES.lifetable, 'utf8')).q[iso];
   const r1 = (x: number) => Math.round(x * 10) / 10;
   const r3 = (x: number) => Math.round(x * 1000) / 1000;
-  cal.mort.F = cal.mort.F.map(r3); cal.mort.M = cal.mort.M.map(r3);
-  cal.union = { F: r3(cal.union.F), M: r3(cal.union.M) };
-  cal.fert = r3(cal.fert);
+  const bySex = (f: (s: Sex) => number) => ({ F: f('F'), M: f('M') });
+  const round = (cal: CountryCalibration): CountryCalibration => ({
+    mort: { F: cal.mort.F.map(r3), M: cal.mort.M.map(r3) },
+    union: bySex((s) => r3(cal.union[s])), fert: r3(cal.fert), childUnion: r3(cal.childUnion), divorce: r3(cal.divorce),
+    lfp: bySex((s) => r3(cal.lfp[s])), find: r3(cal.find), smoke: bySex((s) => r3(cal.smoke[s])), diabetes: r3(cal.diabetes),
+    cause: { comm: r3(cal.cause.comm), ncd: r3(cal.cause.ncd), inj: r3(cal.cause.inj) },
+  });
   return {
     iso,
-    cal,
+    cal: round(cal),
     check: {
-      e0: { F: r1(ratio(v.deathAge.F)), M: r1(ratio(v.deathAge.M)) },
-      e0Target: { F: r1(lifetableE0(lt.F)), M: r1(lifetableE0(lt.M)) },
-      tfr: Math.round(simTfr(v) * 100) / 100,
-      tfrTarget: c.tfr,
-      married: { F: r3(ratio(v.married.F)), M: r3(ratio(v.married.M)) },
-      marriedTarget: c.everMarried,
+      e0: bySex((s) => r1(e0Of(v, s))), e0Target: bySex((s) => r1(lifetableE0(lt[s]))),
+      tfr: r3(tfrOf(v)), tfrTarget: c.tfr,
+      married: bySex((s) => r3(rate(v.married47[s]))), marriedTarget: c.everMarried,
+      childMarriage: r3(rate(v.childMarriage)), childMarriageTarget: c.childMarriage,
+      divorced: r3(rate(v.divorced47.F)), divorcedTarget: r3(c.divorced.F / 100),
+      lfp: bySex((s) => r3(rate(v.inLabor[s]))), lfpTarget: c.lfp,
+      unemployment: r3(rate(v.unemployed)), unemploymentTarget: c.unemployment,
+      smoking: bySex((s) => r3(rate(v.smoking[s]))), smokingTarget: c.smoking,
+      diabetes: r3(rate(v.diabetes)), diabetesTarget: c.diabetesPrev,
+      causes: { comm: r3(v.causes.comm / v.deaths), ncd: r3(v.causes.ncd / v.deaths), inj: r3(v.causes.inj / v.deaths) },
+      causesTarget: { comm: r3(c.deathShare.comm), ncd: r3(c.deathShare.ncd), inj: r3(c.deathShare.inj) },
     },
   };
 }
 
-function loadWorld(): World {
-  const json = (p: string) => JSON.parse(readFileSync(p, 'utf8'));
-  return new World({ countries: json(FILES.countries), lifetable: json(FILES.lifetable), content: json(FILES.content) });
-}
-
 if (!isMainThread) {
   const { isos, n, iterations } = workerData as Job;
-  const world = loadWorld();
+  const world = loadWorld(false);
   for (const iso of isos) parentPort!.postMessage(calibrateCountry(world, iso, n, iterations));
 } else {
   const n = Number(process.argv[2] ?? 1500);
-  const iterations = Number(process.argv[3] ?? 4);
-  const world = loadWorld();
-  // 큰 나라부터 고르게 나눠 작업자들이 비슷하게 끝나게 한다
+  const iterations = Number(process.argv[3] ?? 6);
+  const world = loadWorld(false);
   const isos = world.countries.map((c) => c.id);
   const threads = Math.min(availableParallelism(), isos.length);
   const buckets: string[][] = Array.from({ length: threads }, () => []);
@@ -161,8 +132,8 @@ if (!isMainThread) {
 
   results.sort((a, b) => a.iso.localeCompare(b.iso));
   const hash = createHash('sha256');
-  for (const f of Object.values(FILES)) hash.update(readFileSync(f));
-  const file: CalibrationFile & { check: Record<string, CountryResult['check']> } = {
+  for (const f of Object.values(INPUT_FILES)) hash.update(readFileSync(f));
+  const file: CalibrationFile & { check: Record<string, Check> } = {
     generated: new Date().toISOString().slice(0, 10),
     contentHash: hash.digest('hex').slice(0, 16),
     livesPerSex: n,
@@ -170,16 +141,27 @@ if (!isMainThread) {
     countries: Object.fromEntries(results.map((r) => [r.iso, r.cal])),
     check: Object.fromEntries(results.map((r) => [r.iso, r.check])),
   };
-  writeFileSync(OUT, JSON.stringify(file) + '\n');
+  writeFileSync(CALIBRATION_FILE, JSON.stringify(file) + '\n');
 
-  // 요약: 통계와의 차이
-  const err = (f: (r: CountryResult) => number) => {
-    const xs = results.map(f).sort((a, b) => a - b);
+  // 요약: 통계와의 차이 (검증 시드)
+  const stat = (f: (k: Check) => number) => {
+    const xs = results.map((r) => f(r.check)).filter(Number.isFinite).sort((a, b) => a - b);
     return { mean: xs.reduce((s, x) => s + x, 0) / xs.length, p90: xs[Math.floor(xs.length * 0.9)], max: xs[xs.length - 1] };
   };
-  const fmt = (o: { mean: number; p90: number; max: number }, d = 2) => `평균 ${o.mean.toFixed(d)}, 90% ${o.p90.toFixed(d)}, 최대 ${o.max.toFixed(d)}`;
+  const line = (label: string, f: (k: Check) => number, scale = 1, d = 2) => {
+    const s = stat(f);
+    console.log(`${label.padEnd(22)} 평균 ${(s.mean * scale).toFixed(d)}, 90% ${(s.p90 * scale).toFixed(d)}, 최대 ${(s.max * scale).toFixed(d)}`);
+  };
+  const maxSex = (f: (s: Sex) => number) => Math.max(Math.abs(f('F')), Math.abs(f('M')));
   console.log(`\n${results.length}개국 보정 완료 (${Math.round((Date.now() - started) / 1000)}초, 성별당 ${n}명 × ${iterations}회)`);
-  console.log(`기대수명 차이(년)   ${fmt(err((r) => Math.max(Math.abs(r.check.e0.F - r.check.e0Target.F), Math.abs(r.check.e0.M - r.check.e0Target.M))))}`);
-  console.log(`합계출산율 차이     ${fmt(err((r) => Math.abs(r.check.tfr - r.check.tfrTarget)))}`);
-  console.log(`결혼 경험 차이(%p)  ${fmt(err((r) => 100 * Math.max(Math.abs(r.check.married.F - r.check.marriedTarget.F), Math.abs(r.check.married.M - r.check.marriedTarget.M))), 1)}`);
+  line('기대수명 차이(년)', (k) => maxSex((s) => k.e0[s] - k.e0Target[s]), 1, 2);
+  line('합계출산율 차이', (k) => Math.abs(k.tfr - k.tfrTarget));
+  line('결혼 경험 차이(%p)', (k) => maxSex((s) => k.married[s] - k.marriedTarget[s]), 100, 1);
+  line('조혼율 차이(%p)', (k) => Math.abs(k.childMarriage - k.childMarriageTarget), 100, 1);
+  line('이혼·별거 차이(%p)', (k) => Math.abs(k.divorced - k.divorcedTarget), 100, 1);
+  line('경제활동참가율 차이(%p)', (k) => maxSex((s) => k.lfp[s] - k.lfpTarget[s]), 100, 1);
+  line('실업률 차이(%p)', (k) => Math.abs(k.unemployment - k.unemploymentTarget), 100, 1);
+  line('흡연율 차이(%p)', (k) => maxSex((s) => k.smoking[s] - k.smokingTarget[s]), 100, 1);
+  line('당뇨 유병률 차이(%p)', (k) => Math.abs(k.diabetes - k.diabetesTarget), 100, 1);
+  line('사망 원인 비중 차이(%p)', (k) => Math.max(...GROUPS.map((g) => Math.abs(k.causes[g] - k.causesTarget[g]))), 100, 1);
 }

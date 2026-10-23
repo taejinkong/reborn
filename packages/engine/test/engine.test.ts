@@ -6,6 +6,7 @@ import { lognormalIncome, oddsNormalizer, scaleOdds } from '../src/math.ts';
 import { Rng } from '../src/rng.ts';
 import { format, render } from '../src/text.ts';
 import { loadWorld } from './world.ts';
+import { e0Of, measureCountry, rate, tfrOf } from '../../../scripts/measure.ts';
 
 const world = loadWorld();
 
@@ -96,39 +97,33 @@ describe('삶', () => {
 
 describe('통계 보정 (몬테카를로)', () => {
   // 보정표(data/build/calibration.json)를 쓴 상태에서, 개인 요인과 선택을 넣고도 국가 통계가 유지되어야 한다.
-  // 보정에 쓰지 않은 시드로 검사한다.
+  // 보정·감사와 같은 측정 코드(scripts/measure.ts)를 쓰고, 보정에 쓰지 않은 시드로 검사한다.
   it('보정 파일이 있다', () => {
     expect(world.calibrationFile, 'npm run calibrate 로 data/build/calibration.json을 만드세요').not.toBeNull();
   });
 
-  const N = 2500;
-  const run = (id: string, sex: 'F' | 'M') => {
-    let deathSum = 0, married47 = 0, alive47 = 0;
-    const births = Array(50).fill(0), years = Array(50).fill(0);
-    for (let i = 0; i < N; i++) {
-      const l = Life.born(world, { seed: `test:${id}:${sex}:${i}`, country: id, sex });
-      while (l.alive) {
-        const age = l.p.age, kids = l.p.family.children.length;
-        if (age === 47) { alive47++; if (l.p.flags.everMarried) married47++; }
-        l.step({ autoFocus: true });
-        if (l.p.pending) l.autoChoose();
-        if (sex === 'F' && age >= 15 && age <= 49 && l.alive) { years[age]++; births[age] += l.p.family.children.length - kids; }
-      }
-      deathSum += l.p.dead!.age + 0.5;
-    }
-    const tfr = births.reduce((t, b, a) => t + (years[a] ? b / years[a] : 0), 0);
-    return { e0: deathSum / N, married: married47 / alive47, tfr };
-  };
-
-  const cases: [string, 'F' | 'M'][] = [['KOR', 'F'], ['KOR', 'M'], ['IND', 'F'], ['NGA', 'M'], ['ETH', 'F'], ['USA', 'F'], ['BRA', 'M'], ['JPN', 'F'], ['FRA', 'F'], ['NGA', 'F']];
-  for (const [id, sex] of cases) {
-    it(`${id} ${sex}: 기대수명·결혼${sex === 'F' ? '·출산' : ''}`, () => {
+  const N = 2000;
+  const pp = (x: number) => `${(x * 100).toFixed(1)}%`;
+  for (const id of ['KOR', 'USA', 'FRA', 'BRA', 'IND', 'EGY', 'NGA', 'ETH']) {
+    it(`${id}: 수명·결혼·출산·노동·건강·사망 원인`, () => {
       const c = world.country(id);
-      const r = run(id, sex);
-      const e0Target = world.calibrationFile ? (world.calibrationFile as unknown as { check: Record<string, { e0Target: Record<string, number> }> }).check[id].e0Target[sex] : c.lifeExp[sex];
-      expect(Math.abs(r.e0 - e0Target), `기대수명 시뮬 ${r.e0.toFixed(1)} vs 생명표 ${e0Target}`).toBeLessThan(1.0);
-      expect(Math.abs(r.married - c.everMarried[sex]), `45~49세 결혼 경험 시뮬 ${(r.married * 100).toFixed(1)}% vs 통계 ${(c.everMarried[sex] * 100).toFixed(1)}%`).toBeLessThan(0.05);
-      if (sex === 'F') expect(Math.abs(r.tfr / c.tfr - 1), `합계출산율 시뮬 ${r.tfr.toFixed(2)} vs 통계 ${c.tfr}`).toBeLessThan(0.1);
-    }, 180_000);
+      const m = measureCountry(world, id, N, 'test');
+      const target = (world.calibrationFile as unknown as { check: Record<string, { e0Target: Record<'F' | 'M', number> }> }).check[id].e0Target;
+      const near = (label: string, got: number, want: number, tol: number, show = pp) =>
+        expect(Math.abs(got - want), `${label}: 시뮬 ${show(got)} vs 통계 ${show(want)}`).toBeLessThan(tol);
+      const yr = (x: number) => `${x.toFixed(1)}세`;
+      for (const sex of ['F', 'M'] as const) {
+        near(`기대수명 ${sex}`, e0Of(m, sex), target[sex], 1.0, yr);
+        near(`결혼 경험 ${sex}`, rate(m.married47[sex]), c.everMarried[sex], 0.05);
+        near(`경제활동참가율 ${sex}`, rate(m.inLabor[sex]), c.lfp[sex], 0.06);
+        near(`흡연율 ${sex}`, rate(m.smoking[sex]), c.smoking[sex], 0.04);
+      }
+      expect(Math.abs(tfrOf(m) / c.tfr - 1), `합계출산율: 시뮬 ${tfrOf(m).toFixed(2)} vs 통계 ${c.tfr}`).toBeLessThan(0.1);
+      near('조혼율', rate(m.childMarriage), c.childMarriage, 0.05);
+      near('45~49세 이혼·별거', rate(m.divorced47.F), c.divorced.F / 100, 0.04);
+      near('실업률', rate(m.unemployed), c.unemployment, 0.02);
+      near('당뇨 유병률', rate(m.diabetes), c.diabetesPrev, 0.025);
+      for (const g of ['comm', 'ncd', 'inj'] as const) near(`사망 원인 ${g}`, m.causes[g] / m.deaths, c.deathShare[g], 0.04);
+    }, 300_000);
   }
 });

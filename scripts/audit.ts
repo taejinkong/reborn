@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { Worker, isMainThread, parentPort, workerData } from 'node:worker_threads';
 import type { Country } from '../packages/engine/src/data.ts';
 import { readFileSync } from 'node:fs';
-import { INPUT_FILES, ROOT, e0Of, gini, lifetableE0, loadWorld, measureCountry, rate, tfrOf, type Measures } from './measure.ts';
+import { INPUT_FILES, ROOT, e0BornOf, e0Of, gini, lifetableE0, loadWorld, measureCountry, rate, tfrOf, type Measures } from './measure.ts';
 
 const COUNTRIES = ['KOR', 'JPN', 'USA', 'FRA', 'DEU', 'RUS', 'BRA', 'MEX', 'CHN', 'IDN', 'IND', 'PAK', 'BGD', 'EGY', 'SAU', 'NGA', 'ETH', 'COD'];
 
@@ -39,8 +39,9 @@ if (!isMainThread) {
   const f1 = (x: number) => (Number.isFinite(x) ? x.toFixed(1) : '—');
   type Row = { label: string; unit: string; tol: number; get: (m: Measures, c: Country) => [number, number] };
   const rows: Row[] = [
-    { label: '기대수명 여성 (생명표 2023)', unit: '세', tol: 1, get: (m, c) => [e0Of(m, 'F'), lifetableE0(lt[c.id].F)] },
-    { label: '기대수명 남성 (생명표 2023)', unit: '세', tol: 1, get: (m, c) => [e0Of(m, 'M'), lifetableE0(lt[c.id].M)] },
+    { label: '기대수명 여성 (거주자, 생명표 2023)', unit: '세', tol: 1, get: (m, c) => [e0Of(m, 'F'), lifetableE0(lt[c.id].F)] },
+    { label: '기대수명 남성 (거주자, 생명표 2023)', unit: '세', tol: 1, get: (m, c) => [e0Of(m, 'M'), lifetableE0(lt[c.id].M)] },
+    { label: '출생자 전체 평균 수명 여성* (해외 거주 포함)', unit: '세', tol: 99, get: (m, c) => [e0BornOf(m, 'F'), lifetableE0(lt[c.id].F)] },
     { label: '합계출산율', unit: '명', tol: 0.2, get: (m, c) => [tfrOf(m), c.tfr] },
     { label: '45~49세 결혼 경험 여성', unit: '%', tol: 4, get: (m, c) => [pct(rate(m.married47.F)), pct(c.everMarried.F)] },
     { label: '45~49세 결혼 경험 남성', unit: '%', tol: 4, get: (m, c) => [pct(rate(m.married47.M)), pct(c.everMarried.M)] },
@@ -59,11 +60,20 @@ if (!isMainThread) {
     { label: '사망 원인: 감염·모성·주산기', unit: '%', tol: 3, get: (m, c) => [pct(m.causes.comm / m.deaths), pct(c.deathShare.comm)] },
     { label: '사망 원인: 비감염성 질환', unit: '%', tol: 3, get: (m, c) => [pct(m.causes.ncd / m.deaths), pct(c.deathShare.ncd)] },
     { label: '사망 원인: 손상(사고·폭력·자살)', unit: '%', tol: 2, get: (m, c) => [pct(m.causes.inj / m.deaths), pct(c.deathShare.inj)] },
+    { label: '해외 거주 비율 (출생국 기준)', unit: '%', tol: 1.5, get: (m, c) => [pct(rate(m.abroad)), pct(c.emigrantShare)] },
+    { label: '해외 거주자 중 피란민', unit: '%', tol: 15, get: (m, c) => [pct(rate(m.refugeeAbroad)), pct(c.refugeeShare)] },
+    {
+      label: '해외 거주자 중 1위 목적지 비율', unit: '%', tol: 10, get: (m, c) => {
+        const [top] = c.destinations;
+        const total = Object.values(m.abroadIn).reduce((s, x) => s + x, 0);
+        return top ? [pct((m.abroadIn[top[0]] ?? 0) / total), pct(top[1])] : [NaN, NaN];
+      },
+    },
     { label: '근로소득 지니 / 소득 지니*', unit: '', tol: 8, get: (m, c) => [100 * gini(m.incomes), 100 * c.gini] },
   ];
 
   let md = `# 모델 감사\n\n${new Date().toISOString().slice(0, 10)} · 국가마다 성별당 ${n}명을 자동 결정 모드로 살려 본 결과 (보정에 쓰지 않은 시드). 칸마다 **시뮬레이션 / 실제 통계**, ⚠는 허용 오차를 넘은 값.\n\n`;
-  md += `> 생성: \`npm run audit\`. \\* 표시는 통계 정의가 완전히 같지 않아 참고용(대학 진학 vs 총취학률, 근로소득 vs 가처분소득 지니). 출처는 [data/SOURCES.md](../data/SOURCES.md).\n\n`;
+  md += `> 생성: \`npm run audit\`. \\* 표시는 통계 정의가 완전히 같지 않아 참고용(대학 진학 vs 총취학률, 근로소득 vs 가처분소득 지니, 해외 거주분이 섞인 출생자 평균 수명). 출처는 [data/SOURCES.md](../data/SOURCES.md).\n\n`;
   md += `| 항목 | 허용 | ${COUNTRIES.join(' | ')} |\n|---|---|${COUNTRIES.map(() => '---').join('|')}|\n`;
   const summary: string[] = [];
   for (const r of rows) {

@@ -35,7 +35,11 @@ export interface Measures {
   mortN: Record<Sex, number[]>;
   births: number[];
   womanYears: number[];
+  /** 출생자 전체의 사망 나이 (해외에서 죽은 사람 포함, 참고용) */
   deathAge: Record<Sex, Counter>;
+  /** 출생국에 사는 동안의 나이별 노출 연수와 사망 수 → 거주자 생명표 */
+  homeYears: Record<Sex, number[]>;
+  homeDeaths: Record<Sex, number[]>;
   married47: Record<Sex, Counter>;
   divorced47: Record<Sex, Counter>;
   childMarriage: Counter;
@@ -51,6 +55,12 @@ export interface Measures {
   secondary: Counter;
   tertiary: Counter;
   incomes: number[];
+  /** 출생국 밖에서 보낸 해 / 전체 해 */
+  abroad: Counter;
+  /** 해외에서 보낸 해 중 피란민으로 보낸 해 */
+  refugeeAbroad: Counter;
+  /** 해외에서 보낸 해의 나라별 합 */
+  abroadIn: Record<string, number>;
 }
 
 export function measureCountry(world: World, iso: string, n: number, tag: string): Measures {
@@ -59,10 +69,13 @@ export function measureCountry(world: World, iso: string, n: number, tag: string
   const m: Measures = {
     mortSum: { F: zeros(), M: zeros() }, mortN: { F: zeros(), M: zeros() },
     births: Array(50).fill(0), womanYears: Array(50).fill(0),
-    deathAge: { F: ctr(), M: ctr() }, married47: { F: ctr(), M: ctr() }, divorced47: { F: ctr(), M: ctr() },
+    deathAge: { F: ctr(), M: ctr() },
+    homeYears: { F: Array(111).fill(0), M: Array(111).fill(0) }, homeDeaths: { F: Array(111).fill(0), M: Array(111).fill(0) },
+    married47: { F: ctr(), M: ctr() }, divorced47: { F: ctr(), M: ctr() },
     childMarriage: ctr(), inLabor: { F: ctr(), M: ctr() }, unemployed: ctr(), smoking: { F: ctr(), M: ctr() },
     diabetes: ctr(), causes: { comm: 0, ncd: 0, inj: 0 }, causeDetail: {}, deaths: 0,
     urban: ctr(), primary: ctr(), secondary: ctr(), tertiary: ctr(), incomes: [],
+    abroad: ctr(), refugeeAbroad: ctr(), abroadIn: {},
   };
   const add = (c: Counter, hit: boolean) => { c[0] += hit ? 1 : 0; c[1]++; };
 
@@ -70,6 +83,8 @@ export function measureCountry(world: World, iso: string, n: number, tag: string
     for (let i = 0; i < n; i++) {
       const l = Life.born(world, { seed: `${tag}:${iso}:${sex}:${i}`, country: iso, sex });
       l.observe = (o) => {
+        // 사망 보정은 그 나라에 사는 동안만 센다 (해외에서는 그 나라의 보정을 따른다)
+        if (o.country !== iso) return;
         const b = mortBand(o.age);
         m.mortSum[o.sex][b] += o.raw;
         m.mortN[o.sex][b]++;
@@ -78,7 +93,19 @@ export function measureCountry(world: World, iso: string, n: number, tag: string
       let marriedBefore18 = false;
       while (l.alive) {
         const p = l.p, a = p.age;
-        // 그 해 시작 시점의 상태로 센다
+        const home = p.country === iso;
+        add(m.abroad, !home);
+        if (home) m.homeYears[sex][Math.min(a, 110)]++;
+        if (!home) {
+          add(m.refugeeAbroad, p.flags.refugee === true);
+          m.abroadIn[p.country] = (m.abroadIn[p.country] ?? 0) + 1;
+        }
+        // 그 해 시작 시점의 상태로 센다. 국가 통계는 그 나라에 사는 사람 기준이므로 출생국에 있을 때만 센다.
+        if (!home) {
+          l.step({ autoFocus: true });
+          if (l.p.pending) l.autoChoose();
+          continue;
+        }
         if (a === 7) add(m.primary, p.edu.school !== null || p.edu.level !== 'none');
         if (a === 14) add(m.secondary, p.edu.school?.stage === 'secondary' || ['secondary', 'tertiary', 'graduate'].includes(p.edu.level));
         if (a === 23) add(m.tertiary, p.edu.school?.stage === 'tertiary' || ['tertiary', 'graduate'].includes(p.edu.level));
@@ -106,6 +133,7 @@ export function measureCountry(world: World, iso: string, n: number, tag: string
         }
       }
       const d = l.p.dead!;
+      if (l.p.country === iso) m.homeDeaths[sex][Math.min(d.age, 110)]++;
       m.deathAge[sex][0] += d.age + 0.5;
       m.deathAge[sex][1]++;
       const cause = d.cause as Cause;
@@ -119,7 +147,15 @@ export function measureCountry(world: World, iso: string, n: number, tag: string
 
 export const rate = ratio;
 export const tfrOf = (m: Measures) => m.births.reduce((t, b, a) => t + (m.womanYears[a] ? b / m.womanYears[a] : 0), 0);
-export const e0Of = (m: Measures, sex: Sex) => ratio(m.deathAge[sex]);
+/** 출생자 전체의 평균 사망 나이 (해외 거주분 포함) */
+export const e0BornOf = (m: Measures, sex: Sex) => ratio(m.deathAge[sex]);
+
+/** 거주자 기대수명: 출생국에 사는 동안의 나이별 사망률로 만든 생명표의 기대수명 (국가 통계와 같은 정의) */
+export function e0Of(m: Measures, sex: Sex): number {
+  const q = m.homeYears[sex].map((y, a) => (y > 0 ? Math.min(1, m.homeDeaths[sex][a] / y) : 1));
+  q[q.length - 1] = 1;
+  return lifetableE0(q);
+}
 
 export function gini(xs: number[]): number {
   const s = [...xs].sort((a, b) => a - b);

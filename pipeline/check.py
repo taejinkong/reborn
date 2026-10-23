@@ -57,6 +57,11 @@ def main():
                 v = c[f]["v"][sx]
                 if not lo <= v <= hi:
                     errors.append(f"{c['id']} {f}.{sx}={v}")
+        if not 0 <= c["emigrantShare"]["v"] < 0.7:
+            errors.append(f"{c['id']} emigrantShare={c['emigrantShare']['v']}")
+        d = c["destinations"]["v"]
+        if c["emigrants"]["v"] > 1000 and (not d or abs(sum(x[1] for x in d) - 1) > 0.01):
+            errors.append(f"{c['id']} destinations 합 {sum(x[1] for x in d):.3f}")
         a = c["asfr"]["v"]
         tfr_from_asfr = sum(a) * 5 / 1000
         if len(a) != 7 or abs(tfr_from_asfr - c["tfr"]["v"]) > 0.1:  # 10~14세·50세 출산분 제외 차이

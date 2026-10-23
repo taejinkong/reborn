@@ -35,6 +35,10 @@ export interface CountryCalibration {
   diabetes: number;
   /** 사망 원인 3대 분류 가중치 → WHO 사망 원인 비중 */
   cause: Record<CauseGroup, number>;
+  /** 노동 이주 위험률 배수 → 해외 거주 비율 중 피란민이 아닌 부분 */
+  emig: number;
+  /** 피란 위험률 배수 → 해외 거주 비율 중 피란민 부분 */
+  flee: number;
 }
 
 export interface CalibrationFile {
@@ -51,6 +55,7 @@ export function defaultCalibration(): CountryCalibration {
   return {
     mort: { F: ones(), M: ones() }, union: { F: 1, M: 1 }, fert: 1.3, childUnion: 1, divorce: 1,
     lfp: { F: 1, M: 1 }, find: 1, smoke: { F: 1, M: 1 }, diabetes: 1, cause: { comm: 1, ncd: 1, inj: 1 },
+    emig: 1, flee: 1,
   };
 }
 
@@ -126,8 +131,36 @@ export function diabetesHazard(c: Country, age: number, k: number): number {
   return clamp((c.diabetesPrev / 25) * k * Math.min(2, (age - 25) / 25), 0, 0.2);
 }
 
+// ── 국제 이주 ──────────────────────────────────────────────
+
+/** 노동 이주 나이 모양: 27세 중심 정규분포 (18~50세 합이 1) */
+function emigShape(age: number): number {
+  if (age < 18 || age > 50) return 0;
+  const pdf = (a: number) => Math.exp(-0.5 * ((a - 27) / 7) ** 2);
+  let total = 0;
+  for (let a = 18; a <= 50; a++) total += pdf(a);
+  return pdf(age) / total;
+}
+
+/** 출생국에 사는 18~50세가 올해 해외로 일하러 갈 기회를 만날 확률 */
+export function emigrateHazard(age: number, c: Country, k: number): number {
+  const cum = -Math.log(1 - Math.min(c.emigrantShare * (1 - c.refugeeShare), 0.9));
+  return 1 - Math.exp(-k * cum * emigShape(age));
+}
+
+/** 출생국에 사는 사람이 올해 나라 밖으로 피란할 확률 (나이와 무관, 가족 단위) */
+export function fleeHazard(c: Country, k: number): number {
+  const cum = -Math.log(1 - Math.min(c.emigrantShare * c.refugeeShare, 0.9));
+  return 1 - Math.exp((-k * cum) / 40);
+}
+
+/** 해외에 사는 사람이 올해 귀국을 고민하게 될 확률 (추정: 노동 이주 연 5%, 피란 연 3%) */
+export function returnHazard(refugee: boolean): number {
+  return refugee ? 0.03 : 0.05;
+}
+
 /** 표현식에서 `rates.*`로 쓰는 올해 확률들 */
-export function personRates(p: Person, c: Country, cal: CountryCalibration) {
+export function personRates(p: Person, c: Country, cal: CountryCalibration, born?: Country, bornCal?: CountryCalibration) {
   const married = p.flags.everMarried === true;
   return {
     union: married ? remarriageHazard(p.age, c.everMarried[p.sex], cal.union[p.sex]) : unionHazard(p.age, c.everMarried[p.sex], c.marriageAge[p.sex], cal.union[p.sex]),
@@ -136,5 +169,9 @@ export function personRates(p: Person, c: Country, cal: CountryCalibration) {
     smoke: smokeStartHazard(c, p.sex, cal.smoke[p.sex]),
     quitSmoke: smokeQuitHazard(c, p.sex, cal.smoke[p.sex]),
     diabetes: diabetesHazard(c, p.age, cal.diabetes),
+    // 이주 관련 확률은 출생국 통계를 쓴다 (c는 지금 사는 나라)
+    emigrate: born && bornCal && p.country === p.born ? emigrateHazard(p.age, born, bornCal.emig) : 0,
+    flee: born && bornCal && p.country === p.born ? fleeHazard(born, bornCal.flee) : 0,
+    returnHome: returnHazard(p.flags.refugee === true),
   };
 }

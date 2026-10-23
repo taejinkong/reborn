@@ -33,6 +33,9 @@ INDICATORS = {
     "unemployment": "SL.UEM.TOTL.ZS",      # 실업률 (%)
 }
 
+# 값이 없으면 집단 중앙값이 아니라 0으로 보는 지표 (자료가 없다는 것은 거의 없다는 뜻)
+ZERO_IF_MISSING: set = set()
+
 API = "https://api.worldbank.org/v2"
 
 

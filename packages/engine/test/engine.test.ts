@@ -104,8 +104,8 @@ describe('통계 보정 (몬테카를로)', () => {
 
   const N = 2000;
   const pp = (x: number) => `${(x * 100).toFixed(1)}%`;
-  for (const id of ['KOR', 'USA', 'FRA', 'BRA', 'IND', 'EGY', 'NGA', 'ETH']) {
-    it(`${id}: 수명·결혼·출산·노동·건강·사망 원인`, () => {
+  for (const id of ['KOR', 'USA', 'FRA', 'BRA', 'MEX', 'IND', 'EGY', 'NGA', 'ETH', 'SYR']) {
+    it(`${id}: 수명·결혼·출산·노동·건강·사망 원인·이주`, () => {
       const c = world.country(id);
       const m = measureCountry(world, id, N, 'test');
       const target = (world.calibrationFile as unknown as { check: Record<string, { e0Target: Record<'F' | 'M', number> }> }).check[id].e0Target;
@@ -124,6 +124,8 @@ describe('통계 보정 (몬테카를로)', () => {
       near('실업률', rate(m.unemployed), c.unemployment, 0.02);
       near('당뇨 유병률', rate(m.diabetes), c.diabetesPrev, 0.025);
       for (const g of ['comm', 'ncd', 'inj'] as const) near(`사망 원인 ${g}`, m.causes[g] / m.deaths, c.deathShare[g], 0.04);
+      near('해외 거주 비율', rate(m.abroad), c.emigrantShare, Math.max(0.015, c.emigrantShare * 0.15));
+      if (c.emigrantShare * c.refugeeShare > 0.02) near('해외 거주자 중 피란민', rate(m.refugeeAbroad), c.refugeeShare, 0.12);
     }, 300_000);
   }
 });

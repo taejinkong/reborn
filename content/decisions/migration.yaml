@@ -1,0 +1,43 @@
+# 국제 이주. 확률은 UN 국제이주자 통계·UNHCR 난민 통계에 보정으로 맞춘다.
+
+- id: migration.work_abroad
+  kind: decision
+  category: migration
+  when: { age: [18, 50], once: false, if: "!migrant" }
+  chance: rates.emigrate
+  title: dec.abroad.title
+  body: dec.abroad.body
+  options:
+    - id: go
+      label: dec.abroad.go
+      hint: dec.abroad.go.hint
+      resolve:
+        effects: { call: migrate.work }
+    - id: stay
+      label: dec.abroad.stay
+      resolve:
+        effects: { stats: { relations: 2 }, log: dec.abroad.stay.ok }
+  auto:
+    go: 70
+    stay: 30
+  source: [ims2024]
+
+- id: migration.return
+  kind: decision
+  category: migration
+  when: { age: [18, 90], once: false, if: "migrant" }
+  chance: rates.returnHome
+  title: dec.return.title
+  body: dec.return.body
+  options:
+    - id: back
+      label: dec.return.back
+      resolve:
+        effects: { call: migrate.return }
+    - id: stay
+      label: dec.return.stay
+      resolve:
+        effects: { log: dec.return.stay.ok }
+  auto:
+    back: 55
+    stay: 45

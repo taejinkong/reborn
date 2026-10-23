@@ -156,3 +156,14 @@
     - effects: { family: { divorce: true }, set: { divorced: true }, stats: { happiness: -10, relations: -4 }, log: ev.divorce, tags: [loss, family] }
   tone: heavy
   source: [wmd2019.divorced]
+
+- id: migration.flee
+  kind: happening
+  category: migration
+  # 고르는 일이 아니므로 사건이다. 출생국의 국외 피란 비율(UNHCR)에 보정으로 맞춘다.
+  when: { age: [0, 90], once: false, if: "!migrant" }
+  chance: rates.flee
+  outcomes:
+    - effects: { call: migrate.flee }
+  tone: heavy
+  source: [unhcr2024, ims2024]

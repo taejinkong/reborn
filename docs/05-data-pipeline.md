@@ -60,6 +60,8 @@ data/
 | World Happiness Report | 확인 필요 | 확인 |
 | Maddison Project | CC BY 4.0 | 출처 표기 |
 | UCDP | CC BY 4.0 | 출처 표기 |
+| UN International Migrant Stock 2024 | CC BY 3.0 IGO (파일 내 명시) | 출처 표기 |
+| UNHCR Refugee Data Finder | CC BY 4.0로 알려짐 (공식 R 패키지·세계은행 표기). 약관 원문 미확인 | **출시 전 확인** |
 
 > 이 표는 확정이 아닌 점검 목록이다. 출시 전 각 원천의 최신 이용 약관을 직접 확인하고 `data/SOURCES.md` 에 근거 링크를 기록한다.
 

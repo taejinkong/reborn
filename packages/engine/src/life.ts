@@ -19,6 +19,8 @@ const YEAR_SEC = [12, 120] as const;
 const LABOR_SHARE = 0.6;
 /** 경제활동 상태를 해마다 다시 정하는 비율 */
 const LABOR_TURNOVER = 0.15;
+/** 첫 세대 이주자의 소득 순위 불이익 (직업 범위 안 위치, 추정) */
+const MIGRANT_PAY_GAP = 0.15;
 
 export interface YearResult {
   age: number;
@@ -38,7 +40,7 @@ function run(e: Expr, scope: Scope): unknown {
 const normCache = new Map<string, number>();
 
 /** 보정 스크립트용 관찰 이벤트 */
-export type Observation = { type: 'mortality'; age: number; sex: 'F' | 'M'; raw: number };
+export type Observation = { type: 'mortality'; age: number; sex: 'F' | 'M'; country: string; raw: number };
 
 export class Life {
   readonly world: World;
@@ -100,7 +102,7 @@ export class Life {
         retired: p.retired,
         migrant: p.country !== p.born,
         /** 올해 확률들 (국가 통계 + 보정): union, childUnion, divorce, smoke, diabetes */
-        rates: personRates(p, c, this.world.calibration(p.country)),
+        rates: personRates(p, c, this.world.calibration(p.country), this.world.country(p.born), this.world.calibration(p.born)),
       },
       fns: {
         has: (id) => p.conditions.includes(id as string),
@@ -289,6 +291,15 @@ export class Life {
     }
   }
 
+  /** 다른 나라로 옮긴다. 일은 그만두고, 경제활동 상태는 새 나라 기준으로 다시 정한다. */
+  private moveTo(id: string): void {
+    const p = this.p;
+    p.country = id;
+    p.urban = true;
+    if (p.job) { p.job = null; p.money.income = 0; }
+    delete p.flags.outOfLabor;
+  }
+
   private retireAge(): number {
     const c = this.country;
     return c.income === 'HIC' || c.income === 'UMC' ? 65 : 70;
@@ -334,7 +345,9 @@ export class Life {
     p.job = j.id;
     p.jobYears = 0;
     // 직업 범위 안에서 지식·형편이 백분위 위치를 정한다
-    const pos = clamp(0.5 + (p.stats.knowledge - 50) / 120 + (p.household - 3) * 0.06 + this.rng.normal() * 0.15, 0, 1);
+    // 첫 세대 이주자는 같은 조건이라도 소득 순위가 낮게 시작한다 (추정)
+    const migrantGap = p.country !== p.born ? MIGRANT_PAY_GAP : 0;
+    const pos = clamp(0.5 + (p.stats.knowledge - 50) / 120 + (p.household - 3) * 0.06 - migrantGap + this.rng.normal() * 0.15, 0, 1);
     p.money.pct = j.pct[0] + (j.pct[1] - j.pct[0]) * pos;
     p.money.income = lognormalIncome(c.gdpPppPc * LABOR_SHARE, c.gini, p.money.pct);
     this.log('sys.job.start', 'neutral', { job: j.label }, ['work']);
@@ -551,6 +564,37 @@ export class Life {
       case 'school.leave':
         if (p.edu.school) { p.edu.school = null; this.log('sys.school.left', 'heavy'); }
         return;
+      case 'migrate.work':
+      case 'migrate.flee': {
+        const born = this.world.country(p.born);
+        const dests = born.destinations.filter(([id]) => this.world.byId.has(id) && id !== p.country);
+        const dest = this.rng.weighted(dests, ([, w]) => w)?.[0];
+        if (!dest) return;
+        const refugee = name === 'migrate.flee';
+        this.moveTo(dest);
+        p.flags.refugee = refugee;
+        p.flags.migratedAge = p.age;
+        if (refugee) {
+          p.money.cash *= 0.3;
+          this.addStat('health', -4);
+          this.addStat('happiness', -12);
+          this.addStat('relations', -6);
+          this.log('sys.migrate.flee', 'heavy', { country: dest }, ['migration', 'loss']);
+        } else {
+          this.addStat('relations', -5);
+          this.log('sys.migrate.work', 'neutral', { country: dest }, ['migration', 'new_start']);
+          if (p.age >= 15 && !p.edu.school) this.call('job.seek');
+        }
+        return;
+      }
+      case 'migrate.return':
+        if (p.country === p.born) return;
+        this.moveTo(p.born);
+        delete p.flags.refugee;
+        this.addStat('relations', 4);
+        this.log('sys.migrate.return', 'neutral', { country: p.born }, ['migration']);
+        if (p.age >= 15 && !p.edu.school && !p.retired) this.call('job.seek');
+        return;
       case 'move.city':
         if (!p.urban) { p.urban = true; this.log('sys.move.city', 'neutral'); }
         return;
@@ -564,7 +608,7 @@ export class Life {
     const p = this.p, c = this.country;
     const q = this.world.qx(p.country, p.sex, p.age);
     const m = mortalityMultiplier(p, c, this.world.calibration(p.country));
-    this.observe?.({ type: 'mortality', age: p.age, sex: p.sex, raw: rawMortalityMultiplier(p, c) });
+    this.observe?.({ type: 'mortality', age: p.age, sex: p.sex, country: p.country, raw: rawMortalityMultiplier(p, c) });
     const pDie = deathProbability(q, m);
     if (!this.rng.chance(pDie)) return false;
     const cause = drawCause(p, c, this.rng, this.world.calibration(p.country));

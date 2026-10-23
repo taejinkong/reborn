@@ -24,6 +24,9 @@ export interface CountryRecord {
   everMarried: StatValue<{ F: number; M: number }>;
   marriageAge: StatValue<{ F: number; M: number }>;
   divorced: StatValue<{ F: number; M: number }>;
+  emigrantShare: StatValue;
+  refugeeShare: StatValue;
+  destinations: StatValue<[string, number][]>;
   imr: StatValue;
   u5mr: StatValue;
   [field: string]: unknown;
@@ -97,6 +100,12 @@ export interface Country {
   lfp: { F: number; M: number };
   /** 실업률 */
   unemployment: number;
+  /** 이 나라에서 태어나 해외에 사는 사람의 비율 (UN IMS 2024) */
+  emigrantShare: number;
+  /** 해외 거주자 중 피란민 비율 (UNHCR 2024) */
+  refugeeShare: number;
+  /** 이 나라 출신 이주자가 사는 곳과 비율 [국가, 비율][] */
+  destinations: [string, number][];
   /** 추정값으로 채운 필드 이름 */
   estimated: string[];
   /** 원본 레코드 (출처 표시용) */
@@ -153,6 +162,9 @@ export function toCountry(r: CountryRecord): Country {
     diabetesPrev: pct(r, 'diabetesPrev'),
     lfp: { F: pct(r, 'lfpF'), M: pct(r, 'lfpM') },
     unemployment: pct(r, 'unemployment'),
+    emigrantShare: r.emigrantShare.v,
+    refugeeShare: r.refugeeShare.v,
+    destinations: r.destinations.v,
     estimated,
     raw: r,
   };

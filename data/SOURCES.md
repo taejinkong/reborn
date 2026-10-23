@@ -9,6 +9,8 @@
 | `wmd2019` | UN DESA, World Marriage Data 2019 | everMarried (45~49세 결혼 경험 비율), marriageAge (평균 초혼 연령 SMAM), divorced (45~49세 이혼·별거 상태 비율) | CC BY 3.0 IGO | United Nations, DESA, Population Division (2019). World Marriage Data 2019. |
 | `wdi` (WHO GHE) | WHO Global Health Estimates 2019, WDI 재배포 | deathCommShare, deathNcdShare, deathInjShare (사망 원인 3대 분류 비중), ncd3070, suicide, diabetesPrev | CC BY 4.0 (WDI 지표별 라이선스) | World Bank, WDI; 원 출처 WHO |
 | `wdi` (ILO) | ILO 모형 추정, WDI 재배포 | lfpF, lfpM (15~64세 경제활동참가율), unemployment | CC BY 4.0 | World Bank, WDI; 원 출처 ILO |
+| `ims2024` | UN DESA, International Migrant Stock 2024 (출신국×목적지) | emigrantShare (출생자 중 해외 거주 비율), emigrants, destinations (목적지 상위 15곳 비율) | CC BY 3.0 IGO (파일 내 명시) | United Nations, DESA, Population Division (2024). International Migrant Stock 2024. |
+| `unhcr2024` | UNHCR Refugee Data Finder (API, 2024) | refugeeShare (해외 거주자 중 난민·비호 신청자·국제 보호 필요 인구 비율) | CC BY 4.0 (UNHCR 공식 R 패키지·세계은행 재배포 표기 기준) — **출시 전 UNHCR 이용 약관 원문 확인 필요** | UNHCR Refugee Data Finder |
 | `wdi` | World Bank, World Development Indicators | gdpPppPc, gini, urban, agriEmployment, primaryEnroll, secondaryEnroll, tertiaryEnroll, literacy, schoolYears, mmr, hivPrev, homicide, roadDeaths, smokingF/M, oopHealth, childMarriage | CC BY 4.0 | World Bank, World Development Indicators. |
 | `est:group-median` | 같은 지역·소득그룹 → 소득그룹 → 지역 순서의 중앙값 | 결측 보완 | — | 화면에 "추정" 표기 |
 
@@ -39,8 +41,16 @@ WDI 지표 중 일부는 다른 기관(WHO, UNESCO UIS, ILO, UNAIDS, UNODC, UNIC
 | `smoke[성별]` | 15세 이상 흡연율 (WHO, WDI) |
 | `diabetes` | 20~79세 당뇨 유병률 (WDI) |
 | `cause` | 사망 원인 3대 분류 비중 (WHO GHE 2019, WDI) |
+| `emig`, `flee` | 출생자 중 해외 거주 비율을 노동 이주분과 피란분으로 나눠서 (ims2024 × unhcr2024) |
 
 콘텐츠(사건·갈림길·초점)나 통계를 바꾸면 `npm run calibrate`로 다시 만든다. `check` 항목에 국가별 검증 결과(보정에 쓰지 않은 시드)가 들어 있다. 자동 결정 모드의 선택 경향을 기준으로 맞추므로, 플레이어가 다르게 고르면 결과도 달라진다(의도된 동작).
+
+## 이주 데이터 메모
+
+- 해외 거주 비율 = 해외 거주 출생자 / (국내 거주 출생자 + 해외 거주 출생자). 국내 거주 출생자 = WPP 인구 − 국내 이민자 수
+- UN 통계의 "이주자"는 출생국 기준이라, 해외에서 태어난 이주자 자녀는 들어가지 않는다 (시뮬레이션도 같은 기준)
+- 팔레스타인 난민 대부분은 UNHCR이 아닌 UNRWA 소관이라 피란민 비율에 빠져 있다
+- 목적지는 실제 이주자 분포(노동 이주·피란 공통)에서 뽑는다
 
 ## 알려진 특이값
 
@@ -55,6 +65,8 @@ WDI 지표 중 일부는 다른 기관(WHO, UNESCO UIS, ILO, UNAIDS, UNODC, UNIC
 | 사망 원인 3대 분류의 연령대별 상대 비중, 분류 안 세부 원인의 연령 패턴, 손상 원인의 남녀 비 | `packages/engine/src/mortality.ts` |
 | 결혼 위험률(평균 초혼 연령 중심 정규분포, 표준편차 5년), 조혼의 12~17세 분포, 재혼 확률(연 5% 기준) | `packages/engine/src/calibration.ts` |
 | 결혼 기간별 이혼 위험 모양, 경제활동 상태 전환율(연 15%), 구직 성공 기준 확률 | `packages/engine/src/calibration.ts` |
+| 노동 이주 나이 모양(27세 중심, 18~50세), 피란 위험(나이 무관), 귀국 고민 확률(노동 이주 연 5%, 피란 연 3%) | `packages/engine/src/calibration.ts` |
+| 첫 세대 이주자의 소득 순위 불이익(직업 범위 안 위치 −0.15), 피란 시 재산·건강·행복 감소 | `packages/engine/src/life.ts` |
 
 ## 아직 포함하지 않은 데이터
 

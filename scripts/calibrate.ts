@@ -25,6 +25,8 @@ export interface Check {
   smoking: Record<Sex, number>; smokingTarget: Record<Sex, number>;
   diabetes: number; diabetesTarget: number;
   causes: Record<CauseGroup, number>; causesTarget: Record<CauseGroup, number>;
+  abroad: number; abroadTarget: number;
+  refugee: number; refugeeTarget: number;
 }
 interface CountryResult { iso: string; cal: CountryCalibration; check: Check }
 
@@ -64,6 +66,13 @@ function update(world: World, iso: string, cal: CountryCalibration, m: Measures)
   for (const g of GROUPS) cal.cause[g] *= clampR(finite(c.deathShare[g] / (m.causes[g] / m.deaths), 2), 0.3, 3);
   const mean = GROUPS.reduce((s, g) => s + cal.cause[g], 0) / 3;
   for (const g of GROUPS) cal.cause[g] /= mean;
+  // 국제 이주: 해외에서 보낸 해의 비율을 노동 이주분과 피란분으로 나눠 맞춘다
+  const abroad = rate(m.abroad), refShare = rate(m.refugeeAbroad);
+  const laborGot = abroad * (1 - (Number.isFinite(refShare) ? refShare : 0));
+  const fleeGot = abroad * (Number.isFinite(refShare) ? refShare : 0);
+  const laborWant = c.emigrantShare * (1 - c.refugeeShare), fleeWant = c.emigrantShare * c.refugeeShare;
+  cal.emig = laborWant < 0.0005 ? 0.1 : clampR(cal.emig * clampR(finite(hazardRatio(laborWant, laborGot), 3), 0.3, 3), 0.01, 100);
+  cal.flee = fleeWant < 0.0005 ? 0.1 : clampR(cal.flee * clampR(finite(hazardRatio(fleeWant, fleeGot), 3), 0.3, 3), 0.01, 100);
 }
 
 function calibrateCountry(world: World, iso: string, n: number, iterations: number): CountryResult {
@@ -85,6 +94,7 @@ function calibrateCountry(world: World, iso: string, n: number, iterations: numb
     union: bySex((s) => r3(cal.union[s])), fert: r3(cal.fert), childUnion: r3(cal.childUnion), divorce: r3(cal.divorce),
     lfp: bySex((s) => r3(cal.lfp[s])), find: r3(cal.find), smoke: bySex((s) => r3(cal.smoke[s])), diabetes: r3(cal.diabetes),
     cause: { comm: r3(cal.cause.comm), ncd: r3(cal.cause.ncd), inj: r3(cal.cause.inj) },
+    emig: r3(cal.emig), flee: r3(cal.flee),
   });
   return {
     iso,
@@ -101,6 +111,8 @@ function calibrateCountry(world: World, iso: string, n: number, iterations: numb
       diabetes: r3(rate(v.diabetes)), diabetesTarget: c.diabetesPrev,
       causes: { comm: r3(v.causes.comm / v.deaths), ncd: r3(v.causes.ncd / v.deaths), inj: r3(v.causes.inj / v.deaths) },
       causesTarget: { comm: r3(c.deathShare.comm), ncd: r3(c.deathShare.ncd), inj: r3(c.deathShare.inj) },
+      abroad: r3(rate(v.abroad)), abroadTarget: c.emigrantShare,
+      refugee: r3(rate(v.refugeeAbroad)), refugeeTarget: c.refugeeShare,
     },
   };
 }
@@ -163,5 +175,6 @@ if (!isMainThread) {
   line('실업률 차이(%p)', (k) => Math.abs(k.unemployment - k.unemploymentTarget), 100, 1);
   line('흡연율 차이(%p)', (k) => maxSex((s) => k.smoking[s] - k.smokingTarget[s]), 100, 1);
   line('당뇨 유병률 차이(%p)', (k) => Math.abs(k.diabetes - k.diabetesTarget), 100, 1);
+  line('해외 거주 비율 차이(%p)', (k) => Math.abs(k.abroad - k.abroadTarget), 100, 1);
   line('사망 원인 비중 차이(%p)', (k) => Math.max(...GROUPS.map((g) => Math.abs(k.causes[g] - k.causesTarget[g]))), 100, 1);
 }

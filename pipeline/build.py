@@ -11,7 +11,7 @@ from statistics import median
 import pandas as pd
 
 from common import BUILD, RAW, write_json
-from fetch_wb import INDICATORS
+from fetch_wb import INDICATORS, ZERO_IF_MISSING
 
 NOW_YEAR = 2025          # 출생·인구 기준 연도 (WPP 중위 추계)
 LT_NOW = 2023            # 최신 생명표 추정 연도
@@ -29,6 +29,9 @@ WPP_DEMO = RAW / "WPP2024_Demographic_Indicators_Medium.csv.gz"
 WPP_ASFR = RAW / "WPP2024_Fertility_by_Age5.csv.gz"
 WMD = RAW / "undesa_pd_2019_wmd_marital_status.xlsx"
 WMD_MIN_YEAR = 2000      # 이보다 오래된 결혼 통계는 쓰지 않는다
+IMS = RAW / "undesa_pd_2024_ims_stock_by_sex_destination_and_origin.xlsx"
+IMS_YEAR = 2024
+MAX_DESTINATIONS = 15    # 목적지는 상위 15곳까지 (나머지 비중은 이 15곳에 비례 배분)
 WPP_LT = {"F": RAW / "WPP2024_Life_Table_Complete_Medium_Female_1950-2023.csv.gz",
           "M": RAW / "WPP2024_Life_Table_Complete_Medium_Male_1950-2023.csv.gz"}
 
@@ -106,6 +109,29 @@ def load_marriage(m49_to_iso3):
     return out
 
 
+def load_migration(m49_to_iso3, isos):
+    """출신국별 해외 거주자 수, 국내 거주 이민자 수, 목적지 분포 (UN IMS 2024)."""
+    t = pd.read_excel(IMS, "Table 1", header=10)
+    dest, orig = "Location code of destination", "Location code of origin"
+    t = t[[dest, orig, IMS_YEAR]].dropna()
+    t[dest] = t[dest].astype(int)
+    t[orig] = t[orig].astype(int)
+    world = 900
+    emigrants = {m49_to_iso3[o]: v for o, v in t[t[dest] == world].set_index(orig)[IMS_YEAR].items() if o in m49_to_iso3}
+    immigrants = {m49_to_iso3[d]: v for d, v in t[t[orig] == world].set_index(dest)[IMS_YEAR].items() if d in m49_to_iso3}
+    od = t[t[dest].isin(m49_to_iso3) & t[orig].isin(m49_to_iso3)].copy()
+    od["d"] = od[dest].map(m49_to_iso3)
+    od["o"] = od[orig].map(m49_to_iso3)
+    od = od[od.d.isin(isos) & (od.d != od.o)]
+    dests = {}
+    for o, g in od.groupby("o"):
+        g = g.sort_values(IMS_YEAR, ascending=False).head(MAX_DESTINATIONS)
+        total = g[IMS_YEAR].sum()
+        if total > 0:
+            dests[o] = [[d, round(float(v / total), 4)] for d, v in zip(g.d, g[IMS_YEAR]) if v / total >= 0.001]
+    return emigrants, immigrants, dests
+
+
 def build_countries():
     demo = load_wpp_demo()
     m49_to_iso3 = dict(zip(demo.LocID.astype(int), demo.ISO3_code))
@@ -114,6 +140,8 @@ def build_countries():
     meta, wb = load_wb()
     asfr = load_asfr(set(now.index))
     marriage = load_marriage(m49_to_iso3)
+    emigrants, immigrants, dests = load_migration(m49_to_iso3, set(now.index))
+    unhcr = {r["iso3"]: r["displacedAbroad"] for r in json.load(open(RAW / "unhcr" / "population_2024.json"))}
 
     out = {}
     for iso, r in now.iterrows():
@@ -142,6 +170,17 @@ def build_countries():
             # 15-19, 20-24, ..., 45-49세 연령별 출산율 (여성 1,000명당)
             "asfr": {"v": asfr[iso], "y": NOW_YEAR, "src": src},
         }
+        # 이 나라에서 태어나 해외에 사는 사람의 비율 = 해외 거주자 / (국내 거주 본국 출생자 + 해외 거주자)
+        pop_k = r.TPopulation1July
+        emi = float(emigrants.get(iso, 0))
+        native_home = max(pop_k * 1000 - float(immigrants.get(iso, 0)), 1)
+        c["emigrantShare"] = {"v": round(emi / (native_home + emi), 4), "y": IMS_YEAR, "src": "ims2024"}
+        c["emigrants"] = {"v": int(emi), "y": IMS_YEAR, "src": "ims2024"}
+        c["destinations"] = {"v": dests.get(iso, []), "y": IMS_YEAR, "src": "ims2024"}
+        # 해외 거주자 중 피란민 비율 (UNHCR 2024 / UN IMS 2024). UNRWA 소관 팔레스타인 난민은 빠져 있다
+        displaced = unhcr.get(iso, 0)
+        c["refugeeShare"] = {"v": round(min(displaced / emi, 0.95), 4) if emi > 0 else 0, "y": IMS_YEAR,
+                             "src": "unhcr2024"}
         for field in ("everMarried", "marriageAge", "divorced"):
             m = marriage.get(iso, {}).get(field, {})
             c[field] = ({"v": {s: m[s][0] for s in "FM"}, "y": max(m["F"][1], m["M"][1]), "src": "wmd2019"}
@@ -182,6 +221,9 @@ def fill_missing(out):
         everyone = [c[field]["v"] for c in have]
         for c in out.values():
             if c[field]:
+                continue
+            if field in ZERO_IF_MISSING:
+                c[field] = {"v": 0, "y": None, "src": "est:zero", "est": True}
                 continue
             pool = by_ri.get((c["region"], c["income"])) or by_i.get(c["income"]) or by_r.get(c["region"]) or everyone
             c[field] = {"v": round(median(pool), 2), "y": None, "src": "est:group-median", "est": True}

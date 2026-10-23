@@ -26,6 +26,9 @@ REGION_EXTRA = {"TWN": ("EAS", "HIC"), "ESH": ("MEA", "LMC"), "GLP": ("LCN", "HI
                 "GUF": ("LCN", "HIC"), "REU": ("SSF", "HIC"), "MYT": ("SSF", "UMC"), "VEN": ("LCN", "UMC")}
 
 WPP_DEMO = RAW / "WPP2024_Demographic_Indicators_Medium.csv.gz"
+WPP_ASFR = RAW / "WPP2024_Fertility_by_Age5.csv.gz"
+WMD = RAW / "undesa_pd_2019_wmd_marital_status.xlsx"
+WMD_MIN_YEAR = 2000      # 이보다 오래된 결혼 통계는 쓰지 않는다
 WPP_LT = {"F": RAW / "WPP2024_Life_Table_Complete_Medium_Female_1950-2023.csv.gz",
           "M": RAW / "WPP2024_Life_Table_Complete_Medium_Male_1950-2023.csv.gz"}
 
@@ -38,7 +41,7 @@ def rnd(x, n=3):
 
 
 def load_wpp_demo():
-    cols = ["ISO3_code", "ISO2_code", "LocTypeName", "Location", "Time", "TPopulation1July", "Births", "TFR", "MAC", "SRB",
+    cols = ["LocID", "ISO3_code", "ISO2_code", "LocTypeName", "Location", "Time", "TPopulation1July", "Births", "TFR", "MAC", "SRB",
             "LEx", "LExMale", "LExFemale", "IMR", "Q5"]
     # 나미비아 ISO2 코드 "NA"가 결측치로 읽히지 않도록 빈 칸만 결측으로 본다
     d = pd.read_csv(WPP_DEMO, usecols=cols, low_memory=False, keep_default_na=False, na_values=[""])
@@ -61,11 +64,48 @@ def load_wb():
     return meta, latest
 
 
+def load_asfr(isos):
+    """2025년 5세 구간 연령별 출산율 (15~49세, 여성 1,000명당)."""
+    # 파일 이름과 달리 여러 추계 변형이 함께 들어 있어 중위(Medium)만 고른다
+    d = pd.read_csv(WPP_ASFR, usecols=["ISO3_code", "LocTypeName", "Variant", "Time", "AgeGrpStart", "ASFR"],
+                    dtype={"ISO3_code": str, "LocTypeName": str, "Variant": str}, keep_default_na=False, na_values=[""])
+    d = d[(d.LocTypeName == "Country/Area") & (d.Variant == "Medium") & (d.Time == NOW_YEAR) & d.ISO3_code.isin(isos) &
+          d.AgeGrpStart.between(15, 45)]
+    out = {}
+    for iso, g in d.groupby("ISO3_code"):
+        g = g.sort_values("AgeGrpStart")
+        assert g.AgeGrpStart.tolist() == [15, 20, 25, 30, 35, 40, 45], iso
+        out[iso] = [round(float(v), 1) for v in g.ASFR]
+    return out
+
+
+def load_marriage(m49_to_iso3):
+    """국가·성별 최신 값: 45~49세에 결혼한 적 있는 비율(%)과 평균 초혼 연령(SMAM)."""
+    ever = pd.read_excel(WMD, "EVER_MARRIED", header=2)
+    ever = ever[(ever.AgeGroup == "[45-49]") & (ever.YearEnd >= WMD_MIN_YEAR)]
+    smam = pd.read_excel(WMD, "SMAM", header=2)
+    smam = smam[smam.YearEnd >= WMD_MIN_YEAR]
+    out = {}
+    for name, df in (("everMarried", ever), ("marriageAge", smam)):
+        df = df.sort_values("YearEnd")
+        for (m49, sex), g in df.groupby(["ISO code", "Sex"]):
+            iso = m49_to_iso3.get(int(m49))
+            if not iso or sex not in ("Women", "Men"):
+                continue
+            last = g.iloc[-1]
+            out.setdefault(iso, {}).setdefault(name, {})["F" if sex == "Women" else "M"] = (
+                round(float(last.DataValue), 1), int(last.YearEnd))
+    return out
+
+
 def build_countries():
     demo = load_wpp_demo()
+    m49_to_iso3 = dict(zip(demo.LocID.astype(int), demo.ISO3_code))
     now = demo[demo.Time == NOW_YEAR].set_index("ISO3_code")
     now = now[now.TPopulation1July >= MIN_POP_K]
     meta, wb = load_wb()
+    asfr = load_asfr(set(now.index))
+    marriage = load_marriage(m49_to_iso3)
 
     out = {}
     for iso, r in now.iterrows():
@@ -91,14 +131,34 @@ def build_countries():
             "lifeExp": {"v": {"F": rnd(r.LExFemale, 1), "M": rnd(r.LExMale, 1)}, "y": NOW_YEAR, "src": src},
             "imr": {"v": rnd(r.IMR, 1), "y": NOW_YEAR, "src": src},
             "u5mr": {"v": rnd(r.Q5, 1), "y": NOW_YEAR, "src": src},
+            # 15-19, 20-24, ..., 45-49세 연령별 출산율 (여성 1,000명당)
+            "asfr": {"v": asfr[iso], "y": NOW_YEAR, "src": src},
         }
+        for field in ("everMarried", "marriageAge"):
+            m = marriage.get(iso, {}).get(field, {})
+            c[field] = ({"v": {s: m[s][0] for s in "FM"}, "y": max(m["F"][1], m["M"][1]), "src": "wmd2019"}
+                        if "F" in m and "M" in m else None)
         for field in INDICATORS:
             hit = wb[field].get(iso)
             c[field] = {"v": rnd(hit["value"], 2), "y": hit["year"], "src": "wdi"} if hit else None
         out[iso] = c
 
     fill_missing(out)
+    fill_missing_sexed(out, ("everMarried", "marriageAge"))
     return out
+
+
+def fill_missing_sexed(out, fields):
+    """성별 값 {F, M} 필드의 결측치를 같은 지역·소득그룹 → 지역 → 전체 중앙값으로 채운다."""
+    for field in fields:
+        have = [c for c in out.values() if c[field]]
+        for c in out.values():
+            if c[field]:
+                continue
+            pool = ([x for x in have if (x["region"], x["income"]) == (c["region"], c["income"])]
+                    or [x for x in have if x["region"] == c["region"]] or have)
+            v = {s: round(median(x[field]["v"][s] for x in pool), 1) for s in "FM"}
+            c[field] = {"v": v, "y": None, "src": "est:region-median", "est": True}
 
 
 def fill_missing(out):

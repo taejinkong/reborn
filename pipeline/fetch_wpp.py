@@ -6,9 +6,16 @@ FILES = [
     "WPP2024_Demographic_Indicators_Medium.csv.gz",
     "WPP2024_Life_Table_Complete_Medium_Female_1950-2023.csv.gz",
     "WPP2024_Life_Table_Complete_Medium_Male_1950-2023.csv.gz",
+    "WPP2024_Fertility_by_Age5.csv.gz",
 ]
+
+# UN World Marriage Data 2019 (CC BY 3.0 IGO)
+WMD_URL = ("https://www.un.org/development/desa/pd/sites/www.un.org.development.desa.pd/files/"
+           "undesa_pd_2019_wmd_marital_status.xlsx")
 
 if __name__ == "__main__":
     for name in FILES:
         p = download(BASE + name, RAW / name)
         print(f"{name}: {p.stat().st_size:,} bytes")
+    p = download(WMD_URL, RAW / "undesa_pd_2019_wmd_marital_status.xlsx")
+    print(f"{p.name}: {p.stat().st_size:,} bytes")

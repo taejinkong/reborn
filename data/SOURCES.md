@@ -5,6 +5,8 @@
 | src | 원천 | 사용 필드 | 라이선스 | 출처 표기 |
 |---|---|---|---|---|
 | `wpp2024` | UN DESA, World Population Prospects 2024 (중위 추계) | births, population, tfr, meanAgeBirth, srb, lifeExp, imr, u5mr, lifetables | CC BY 3.0 IGO | United Nations, DESA, Population Division (2024). World Population Prospects 2024. |
+| `wpp2024` (asfr) | UN WPP 2024 연령별 출산율 (5세 구간, 중위 추계) | asfr | CC BY 3.0 IGO | 위와 같음 |
+| `wmd2019` | UN DESA, World Marriage Data 2019 | everMarried (45~49세 결혼 경험 비율), marriageAge (평균 초혼 연령 SMAM) | CC BY 3.0 IGO | United Nations, DESA, Population Division (2019). World Marriage Data 2019. |
 | `wdi` | World Bank, World Development Indicators | gdpPppPc, gini, urban, agriEmployment, primaryEnroll, secondaryEnroll, tertiaryEnroll, literacy, schoolYears, mmr, hivPrev, homicide, roadDeaths, smokingF/M, oopHealth, childMarriage | CC BY 4.0 | World Bank, World Development Indicators. |
 | `est:region-median` | 위 값의 같은 지역·소득그룹 중앙값 | 결측 보완 | — | 화면에 "추정" 표기 |
 
@@ -15,7 +17,20 @@ WDI 지표 중 일부는 다른 기관(WHO, UNESCO UIS, ILO, UNAIDS, UNODC, UNIC
 - 출생·인구·기대수명 기준 연도: 2025 (WPP 추계)
 - 생명표: 2023(최신 추정), 1950~2020 10년 간격(과거 모드용). 단일 연령 0~100세, 100세 이상은 q=1로 종결
 - WDI: 2010년 이후 가장 최근 값만 사용
+- 결혼 통계: 2000년 이후 가장 최근 조사값 (나라마다 기준 연도가 다름, `y` 참고). 사실혼 포함 여부는 나라마다 다름
 - 대상: 인구 10만 명 이상 국가·지역 198곳 (Jersey는 지역 정보 부재로 제외)
+
+## 보정표 (`calibration.json`)
+
+`scripts/calibrate.ts`가 엔진·콘텐츠·통계로 국가마다 성별당 수천 명의 삶을 자동으로 살려 만든다. 원천 통계가 아니라 **엔진이 통계를 재현하도록 맞춘 계수**다.
+
+| 계수 | 맞추는 대상 |
+|---|---|
+| `mort[성별][연령대]` | 개인 사망 배수의 평균 → 나누어서 생명표 사망률 유지 |
+| `union[성별]` | 45~49세 결혼 경험 비율 (wmd2019) |
+| `fert` | 합계출산율 (wpp2024) |
+
+콘텐츠(사건·갈림길·초점)나 통계를 바꾸면 `npm run calibrate`로 다시 만든다. `check` 항목에 국가별 검증 결과(보정에 쓰지 않은 시드)가 들어 있다. 자동 결정 모드의 선택 경향을 기준으로 맞추므로, 플레이어가 다르게 고르면 결과도 달라진다(의도된 동작).
 
 ## 알려진 특이값
 

@@ -50,7 +50,17 @@ def main():
             if diff > 3.0 and c["id"] not in CRISIS_2023:  # 2023 생명표 vs 2025 추계, 소수 연령 근사 차이 허용
                 errors.append(f"{c['id']} {sex} e0 차이 {diff:.1f}년")
 
-    est = sum(1 for c in cs for f in RANGES if c.get(f) and c[f].get("est"))
+        for f, (lo, hi) in (("everMarried", (20, 100)), ("marriageAge", (15, 40))):
+            for sx in "FM":
+                v = c[f]["v"][sx]
+                if not lo <= v <= hi:
+                    errors.append(f"{c['id']} {f}.{sx}={v}")
+        a = c["asfr"]["v"]
+        tfr_from_asfr = sum(a) * 5 / 1000
+        if len(a) != 7 or abs(tfr_from_asfr - c["tfr"]["v"]) > 0.1:  # 10~14세·50세 출산분 제외 차이
+            errors.append(f"{c['id']} asfr 합 {tfr_from_asfr:.2f} vs tfr {c['tfr']['v']}")
+
+    est = sum(1 for c in cs for f in list(RANGES) + ["everMarried", "marriageAge"] if c.get(f) and c[f].get("est"))
     print(f"국가 {len(cs)}개, 추정값 {est}개, 생명표 e0 최대 차이 {worst:.2f}년")
     births = sum(c["births"]["v"] for c in cs)
     print(f"연간 출생아 합계 {births:,}명")

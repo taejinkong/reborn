@@ -1,4 +1,5 @@
 // 사망 모델: 생명표 q(x) × 개인 배수. 배수는 인구 평균이 1이 되도록 맞춘다.
+import { mortBand, type CountryCalibration } from './calibration.ts';
 import { clamp } from './math.ts';
 import type { Country, IncomeGroup } from './data.ts';
 import type { Rng } from './rng.ts';
@@ -24,7 +25,8 @@ function classLevel(p: Person): number {
   return p.age < 18 || p.money.income <= 0 ? p.household : clamp(p.money.pct * 5 + 0.5, 1, 5);
 }
 
-export function mortalityMultiplier(p: Person, c: Country): number {
+/** 보정 전 개인 사망 배수 */
+export function rawMortalityMultiplier(p: Person, c: Country): number {
   let m = 1;
   const g = CLASS_GRADIENT[c.income];
   m *= Math.exp(-g * (classLevel(p) - 3)) / classNorm(g);
@@ -37,7 +39,13 @@ export function mortalityMultiplier(p: Person, c: Country): number {
   m *= Math.pow(1.3, p.conditions.length);
   // 초고령에서는 개인차가 줄어든다
   if (p.age >= 85) m = Math.pow(m, clamp(1 - (p.age - 85) / 20, 0.3, 1));
-  return clamp(m, 0.25, 9);
+  return m;
+}
+
+/** 개인 사망 배수. 보정표로 나눠 국가·성별·연령대 평균이 1이 되게 한다. */
+export function mortalityMultiplier(p: Person, c: Country, cal?: CountryCalibration): number {
+  const norm = cal ? cal.mort[p.sex][mortBand(p.age)] : 1;
+  return clamp(rawMortalityMultiplier(p, c) / norm, 0.25, 9);
 }
 
 /** 올해 사망 확률 (오즈 대신 생존확률 거듭제곱으로 배수를 적용) */

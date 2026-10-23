@@ -5,7 +5,8 @@ import { EDU_LEVELS } from './content.ts';
 import type { Country } from './data.ts';
 import { compile, type Expr, type Scope } from './expr.ts';
 import { clamp, lognormalIncome, oddsNormalizer, scaleOdds } from './math.ts';
-import { deathProbability, drawCause, expectedHealth, mortalityMultiplier } from './mortality.ts';
+import { unionHazard } from './calibration.ts';
+import { deathProbability, drawCause, expectedHealth, mortalityMultiplier, rawMortalityMultiplier } from './mortality.ts';
 import { Rng } from './rng.ts';
 import type { Kin, LogEntry, Person, StatKey, Tone } from './state.ts';
 import type { World } from './world.ts';
@@ -34,10 +35,15 @@ function run(e: Expr, scope: Scope): unknown {
 }
 const normCache = new Map<string, number>();
 
+/** 보정 스크립트용 관찰 이벤트 */
+export type Observation = { type: 'mortality'; age: number; sex: 'F' | 'M'; raw: number };
+
 export class Life {
   readonly world: World;
   readonly p: Person;
   private rng: Rng;
+  /** 보정·분석용 관찰 콜백 (게임 진행에는 영향 없음) */
+  observe?: (o: Observation) => void;
 
   constructor(world: World, person: Person) {
     this.world = world;
@@ -91,6 +97,10 @@ export class Life {
         focus: p.focus,
         retired: p.retired,
         migrant: p.country !== p.born,
+        rates: {
+          /** 올해 결혼 상대를 만날 확률 (국가 결혼 통계 + 보정) */
+          union: unionHazard(p.age, c.everMarried[p.sex], c.marriageAge[p.sex], this.world.calibration(p.country).union[p.sex]),
+        },
       },
       fns: {
         has: (id) => p.conditions.includes(id as string),
@@ -320,12 +330,12 @@ export class Life {
       if (kinDies(kid)) { kid.alive = false; this.log('sys.family.child_died', 'heavy', { age: kid.age }, ['loss']); this.addStat('happiness', -25); }
       ageKin(kid);
     }
-    // 출산: 배우자가 있고 여성 쪽이 가임 연령일 때, 합계출산율을 기준으로
-    const motherAge = p.sex === 'F' ? p.age : pt?.age ?? 0;
-    if (pt?.married && motherAge >= 16 && motherAge <= 45) {
-      const living = p.family.children.filter((k) => k.alive).length;
-      const want = p.flags.noMoreKids ? 0.1 : 1;
-      const pKid = clamp((c.tfr / 18) * want * (living === 0 ? 1.4 : living >= c.tfr + 1 ? 0.3 : 0.9), 0, 0.6);
+    // 출산: 동반자가 있을 때 여성 쪽 나이의 연령별 출산율(WPP) × 국가 보정 배수.
+    // 동반자가 없는 사람의 출산은 v0에서 다루지 않으므로 배수가 그만큼을 메운다.
+    const motherAge = p.sex === 'F' ? p.age : p.family.partner?.age ?? 0;
+    if (p.family.partner && motherAge >= 15 && motherAge <= 49) {
+      const want = p.flags.noMoreKids ? 0.15 : 1;
+      const pKid = clamp(c.asfr[Math.floor((motherAge - 15) / 5)] * this.world.calibration(p.country).fert * want, 0, 0.8);
       if (this.rng.chance(pKid)) {
         const sex = this.rng.chance(c.maleShare) ? 'M' : 'F';
         p.family.children.push({ age: 0, sex, alive: true });
@@ -447,7 +457,7 @@ export class Life {
       const age = Math.round(clamp(p.age + (p.sex === 'F' ? 3 : -3) + this.rng.normal() * 3, 16, 90));
       p.family.partner = { age, sex: p.sex === 'F' ? 'M' : 'F', alive: true, married: false };
     }
-    if (ef.family?.marry && p.family.partner) p.family.partner.married = true;
+    if (ef.family?.marry && p.family.partner) { p.family.partner.married = true; p.flags.everMarried = true; }
     if (ef.family?.divorce) p.family.partner = null;
     if (ef.condition?.add && !p.conditions.includes(ef.condition.add)) p.conditions.push(ef.condition.add);
     if (ef.condition?.remove) p.conditions = p.conditions.filter((x) => x !== ef.condition!.remove);
@@ -501,7 +511,9 @@ export class Life {
   private deathCheck(): boolean {
     const p = this.p, c = this.country;
     const q = this.world.qx(p.country, p.sex, p.age);
-    const pDie = deathProbability(q, mortalityMultiplier(p, c));
+    const m = mortalityMultiplier(p, c, this.world.calibration(p.country));
+    this.observe?.({ type: 'mortality', age: p.age, sex: p.sex, raw: rawMortalityMultiplier(p, c) });
+    const pDie = deathProbability(q, m);
     if (!this.rng.chance(pDie)) return false;
     const cause = drawCause(p, c, this.rng);
     p.dead = { age: p.age, year: p.year, cause };

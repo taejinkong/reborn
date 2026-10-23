@@ -132,7 +132,7 @@ export const ContentBundle = z.object({
 export type Content = z.infer<typeof ContentBundle>;
 
 /** 표현식이 쓸 수 있는 최상위 이름과 함수 (린트 기준) */
-export const SCOPE_ROOTS = ['age', 'sex', 'year', 'stats', 'money', 'edu', 'job', 'family', 'flags', 'country', 'household', 'urban', 'habits', 'focus', 'retired', 'migrant'];
+export const SCOPE_ROOTS = ['age', 'sex', 'year', 'stats', 'money', 'edu', 'job', 'family', 'flags', 'country', 'household', 'urban', 'habits', 'focus', 'retired', 'migrant', 'rates'];
 export const SCOPE_FNS = ['has', 'clamp', 'min', 'max', 'rand', 'did', 'pct'];
 
 /** 콘텐츠 검증. 문제 목록을 돌려준다(빈 배열이면 통과). */

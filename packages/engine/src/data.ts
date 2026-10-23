@@ -20,6 +20,9 @@ export interface CountryRecord {
   meanAgeBirth: StatValue;
   srb: StatValue;
   lifeExp: StatValue<{ F: number; M: number }>;
+  asfr: StatValue<number[]>;
+  everMarried: StatValue<{ F: number; M: number }>;
+  marriageAge: StatValue<{ F: number; M: number }>;
   imr: StatValue;
   u5mr: StatValue;
   [field: string]: unknown;
@@ -55,6 +58,12 @@ export interface Country {
   /** 출생아 중 남아 비율 */
   maleShare: number;
   lifeExp: { F: number; M: number };
+  /** 15-19, 20-24, …, 45-49세 여성의 연간 출산 확률 */
+  asfr: number[];
+  /** 45~49세까지 결혼한 적 있는 비율 (0~1) */
+  everMarried: { F: number; M: number };
+  /** 평균 초혼 연령 (SMAM) */
+  marriageAge: { F: number; M: number };
   imr: number;
   u5mr: number;
   gdpPppPc: number;
@@ -96,6 +105,9 @@ export function toCountry(r: CountryRecord): Country {
     meanAgeBirth: r.meanAgeBirth.v,
     maleShare: r.srb.v / (100 + r.srb.v),
     lifeExp: r.lifeExp.v,
+    asfr: r.asfr.v.map((x) => x / 1000),
+    everMarried: { F: r.everMarried.v.F / 100, M: r.everMarried.v.M / 100 },
+    marriageAge: r.marriageAge.v,
     imr: r.imr.v,
     u5mr: r.u5mr.v,
     gdpPppPc: num(r, 'gdpPppPc'),

@@ -95,22 +95,40 @@ describe('삶', () => {
 });
 
 describe('통계 보정 (몬테카를로)', () => {
-  // 개인 요인(형편·건강·흡연·질병)을 넣어도 국가 기대수명이 유지되어야 한다
-  const cases: [string, 'F' | 'M'][] = [['KOR', 'F'], ['KOR', 'M'], ['IND', 'F'], ['NGA', 'M'], ['ETH', 'F'], ['USA', 'F'], ['BRA', 'M'], ['JPN', 'F']];
-  for (const [id, sex] of cases) {
-    it(`${id} ${sex} 기대수명`, () => {
-      const N = 3000;
-      let sum = 0, n = 0;
-      for (let i = 0; i < N * 3 && n < N; i++) {
-        const l = Life.born(world, { seed: `${id}${sex}${i}`, country: id });
-        if (l.p.sex !== sex) continue;
-        l.liveOut();
-        sum += l.p.dead!.age + 0.5;
-        n++;
+  // 보정표(data/build/calibration.json)를 쓴 상태에서, 개인 요인과 선택을 넣고도 국가 통계가 유지되어야 한다.
+  // 보정에 쓰지 않은 시드로 검사한다.
+  it('보정 파일이 있다', () => {
+    expect(world.calibrationFile, 'npm run calibrate 로 data/build/calibration.json을 만드세요').not.toBeNull();
+  });
+
+  const N = 2500;
+  const run = (id: string, sex: 'F' | 'M') => {
+    let deathSum = 0, married47 = 0, alive47 = 0;
+    const births = Array(50).fill(0), years = Array(50).fill(0);
+    for (let i = 0; i < N; i++) {
+      const l = Life.born(world, { seed: `test:${id}:${sex}:${i}`, country: id, sex });
+      while (l.alive) {
+        const age = l.p.age, kids = l.p.family.children.length;
+        if (age === 47) { alive47++; if (l.p.flags.everMarried) married47++; }
+        l.step({ autoFocus: true });
+        if (l.p.pending) l.autoChoose();
+        if (sex === 'F' && age >= 15 && age <= 49 && l.alive) { years[age]++; births[age] += l.p.family.children.length - kids; }
       }
-      const e0 = sum / n;
-      const target = world.country(id).lifeExp[sex];
-      expect(Math.abs(e0 - target), `${id} ${sex}: 시뮬 ${e0.toFixed(1)} vs 통계 ${target}`).toBeLessThan(2.0);
-    }, 120_000);
+      deathSum += l.p.dead!.age + 0.5;
+    }
+    const tfr = births.reduce((t, b, a) => t + (years[a] ? b / years[a] : 0), 0);
+    return { e0: deathSum / N, married: married47 / alive47, tfr };
+  };
+
+  const cases: [string, 'F' | 'M'][] = [['KOR', 'F'], ['KOR', 'M'], ['IND', 'F'], ['NGA', 'M'], ['ETH', 'F'], ['USA', 'F'], ['BRA', 'M'], ['JPN', 'F'], ['FRA', 'F'], ['NGA', 'F']];
+  for (const [id, sex] of cases) {
+    it(`${id} ${sex}: 기대수명·결혼${sex === 'F' ? '·출산' : ''}`, () => {
+      const c = world.country(id);
+      const r = run(id, sex);
+      const e0Target = world.calibrationFile ? (world.calibrationFile as unknown as { check: Record<string, { e0Target: Record<string, number> }> }).check[id].e0Target[sex] : c.lifeExp[sex];
+      expect(Math.abs(r.e0 - e0Target), `기대수명 시뮬 ${r.e0.toFixed(1)} vs 생명표 ${e0Target}`).toBeLessThan(1.0);
+      expect(Math.abs(r.married - c.everMarried[sex]), `45~49세 결혼 경험 시뮬 ${(r.married * 100).toFixed(1)}% vs 통계 ${(c.everMarried[sex] * 100).toFixed(1)}%`).toBeLessThan(0.05);
+      if (sex === 'F') expect(Math.abs(r.tfr / c.tfr - 1), `합계출산율 시뮬 ${r.tfr.toFixed(2)} vs 통계 ${c.tfr}`).toBeLessThan(0.1);
+    }, 180_000);
   }
 });

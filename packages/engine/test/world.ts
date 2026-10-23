@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { World } from '../src/world.ts';
 
@@ -11,5 +11,6 @@ export function loadWorld(): World {
     countries: json('data/build/countries.json'),
     lifetable: json('data/build/lifetables/2023.json'),
     content: json('content/build/content.json'),
+    calibration: existsSync(join(ROOT, 'data/build/calibration.json')) ? json('data/build/calibration.json') : undefined,
   }));
 }

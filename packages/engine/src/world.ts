@@ -1,4 +1,5 @@
 // 통계·생명표·콘텐츠를 묶은 "세계". 삶은 세계 위에서 만들어진다.
+import { defaultCalibration, type CalibrationFile, type CountryCalibration } from './calibration.ts';
 import { ContentBundle, type Content, type EventDef, type FocusDef, type JobDef } from './content.ts';
 import { toCountry, type CountriesFile, type Country, type LifetableFile } from './data.ts';
 import type { Sex } from './state.ts';
@@ -7,6 +8,8 @@ export interface WorldInput {
   countries: CountriesFile;
   lifetable: LifetableFile;
   content: unknown;
+  /** 없으면 보정 없이(배수 1) 동작한다 */
+  calibration?: CalibrationFile;
 }
 
 export class World {
@@ -19,6 +22,8 @@ export class World {
   readonly jobs: Map<string, JobDef>;
   private readonly q: LifetableFile['q'];
   private readonly maxAge: number;
+  private readonly calib: Record<string, CountryCalibration>;
+  readonly calibrationFile: CalibrationFile | null;
 
   constructor(input: WorldInput) {
     this.countries = input.countries.countries.filter((c) => input.lifetable.q[c.id]).map(toCountry);
@@ -30,6 +35,17 @@ export class World {
     this.events = new Map(this.content.events.map((e) => [e.id, e]));
     this.focus = new Map(this.content.focus.map((f) => [f.id, f]));
     this.jobs = new Map(this.content.jobs.map((j) => [j.id, j]));
+    this.calibrationFile = input.calibration ?? null;
+    this.calib = { ...(input.calibration?.countries ?? {}) };
+  }
+
+  /** 국가 보정 계수. 보정 스크립트는 setCalibration으로 바꿔 가며 반복한다. */
+  calibration(id: string): CountryCalibration {
+    return (this.calib[id] ??= defaultCalibration());
+  }
+
+  setCalibration(id: string, c: CountryCalibration): void {
+    this.calib[id] = c;
   }
 
   country(id: string): Country {

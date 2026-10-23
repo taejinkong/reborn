@@ -3,8 +3,9 @@ import { Life, World, birthOdds, countryName, render, type DecisionDef, type Log
 import countries from '../../../data/build/countries.json';
 import lifetable from '../../../data/build/lifetables/2023.json';
 import content from '../../../content/build/content.json';
+import calibration from '../../../data/build/calibration.json';
 
-const world = new World({ countries: countries as never, lifetable: lifetable as never, content });
+const world = new World({ countries: countries as never, lifetable: lifetable as never, content, calibration: calibration as never });
 const app = document.getElementById('app')!;
 const modal = document.getElementById('modal')!;
 

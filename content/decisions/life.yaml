@@ -57,11 +57,12 @@
 - id: love.meet
   kind: decision
   category: love
-  when: { age: [17, 55], once: false, cooldown: 2, if: "!family.partner" }
+  # 매년 국가 결혼 통계에서 나온 확률로 상대를 만난다 (거절해도 다음 해에 다시 기회가 온다)
+  when: { age: [15, 60], once: false, if: "!family.partner" }
   chance:
-    base: "age < 35 ? 0.22 : 0.08"
+    base: rates.union
     odds:
-      - { by: stats.relations, beta: 0.03, center: 55 }
+      - { by: stats.relations, beta: 0.02, center: 55 }
   title: dec.meet.title
   body: dec.meet.body
   options:
@@ -74,14 +75,15 @@
       resolve:
         effects: { log: dec.meet.pass.ok }
   auto:
-    date: 80
-    pass: 20
+    date: 85
+    pass: 15
+  source: [wmd2019.ever_married, wmd2019.smam]
 
 - id: love.marry
   kind: decision
   category: love
-  when: { age: [18, 60], once: false, cooldown: 2, if: "family.partner && !family.married" }
-  chance: 0.35
+  when: { age: [15, 70], once: false, if: "family.partner && !family.married" }
+  chance: 0.5
   title: dec.marry.title
   body: dec.marry.body
   options:
@@ -92,12 +94,12 @@
     - id: wait
       label: dec.marry.wait
       resolve:
-        chance: 0.7
+        chance: 0.8
         success: { log: dec.marry.wait.ok }
         fail: { family: { divorce: true }, stats: { happiness: -8 }, log: dec.marry.wait.breakup, tags: [loss] }
   auto:
-    marry: 75
-    wait: 25
+    marry: 80
+    wait: 20
 
 - id: family.enough_kids
   kind: decision

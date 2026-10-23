@@ -2,7 +2,7 @@
 import { clamp, scaleOdds, oddsNormalizer } from './math.ts';
 import type { Country } from './data.ts';
 import { Rng } from './rng.ts';
-import type { BirthMode, Person } from './state.ts';
+import type { BirthMode, Person, Sex } from './state.ts';
 import type { World } from './world.ts';
 
 export interface BirthOptions {
@@ -10,6 +10,8 @@ export interface BirthOptions {
   mode?: BirthMode;
   /** 지정하면 이 나라에서 태어난다 (테스트·공유 시드용) */
   country?: string;
+  /** 지정하면 이 성별로 태어난다 (보정·테스트용) */
+  sex?: Sex;
 }
 
 export function chooseCountry(world: World, mode: BirthMode, rng: Rng): Country {
@@ -31,7 +33,8 @@ export function bornPerson(world: World, opts: BirthOptions = {}): Person {
   const rng = new Rng(seed);
   const mode = opts.mode ?? 'births';
   const c = opts.country ? world.country(opts.country) : chooseCountry(world, mode, rng);
-  const sex = rng.chance(c.maleShare) ? 'M' : 'F';
+  const drawn: Sex = rng.chance(c.maleShare) ? 'M' : 'F';
+  const sex = opts.sex ?? drawn;
   const household = rng.int(1, 5);
 
   // 도시 출생: 도시화율을 기준으로 형편이 좋을수록 도시일 가능성이 높다 (평균은 도시화율 유지)

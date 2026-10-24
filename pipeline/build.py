@@ -46,7 +46,7 @@ def rnd(x, n=3):
 
 
 def load_wpp_demo():
-    cols = ["LocID", "ISO3_code", "ISO2_code", "LocTypeName", "Location", "Time", "TPopulation1July", "Births", "TFR", "MAC", "SRB",
+    cols = ["LocID", "ISO3_code", "ISO2_code", "LocTypeName", "Location", "Time", "TPopulation1July", "Births", "Deaths", "TFR", "MAC", "SRB",
             "LEx", "LExMale", "LExFemale", "IMR", "Q5"]
     # 나미비아 ISO2 코드 "NA"가 결측치로 읽히지 않도록 빈 칸만 결측으로 본다
     d = pd.read_csv(WPP_DEMO, usecols=cols, low_memory=False, keep_default_na=False, na_values=[""])
@@ -160,6 +160,7 @@ def build_countries():
             "region": REGION[reg],
             "income": inc,
             "births": {"v": int(round(r.Births * 1000)), "y": NOW_YEAR, "src": src},
+            "deaths": {"v": int(round(r.Deaths * 1000)), "y": NOW_YEAR, "src": src},
             "population": {"v": int(round(r.TPopulation1July * 1000)), "y": NOW_YEAR, "src": src},
             "tfr": {"v": rnd(r.TFR, 2), "y": NOW_YEAR, "src": src},
             "meanAgeBirth": {"v": rnd(r.MAC, 1), "y": NOW_YEAR, "src": src},

@@ -9,3 +9,8 @@ __pycache__/
 .venv/
 coverage/
 content/build/
+apps/web/.next/
+apps/web/out/
+apps/web/public/data/
+apps/web/next-env.d.ts
+*.tsbuildinfo

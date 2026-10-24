@@ -25,14 +25,15 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      - run: npm run build:content && npm run data -w @reborn/web
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
         env:
-          BASE_PATH: /reborn/
+          PAGES_BASE: /reborn
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: apps/demo/dist
+          path: apps/web/out
 
   deploy:
     if: github.event_name != 'pull_request'

@@ -12,6 +12,8 @@ export interface BirthOptions {
   country?: string;
   /** 지정하면 이 성별로 태어난다 (보정·테스트용) */
   sex?: Sex;
+  /** 태어나는 해 (기본: 통계 기준 연도). 앱은 실제 올해를 넘긴다 */
+  year?: number;
 }
 
 export function chooseCountry(world: World, mode: BirthMode, rng: Rng): Country {
@@ -54,8 +56,8 @@ export function bornPerson(world: World, opts: BirthOptions = {}): Person {
     seed,
     rng: rng.state,
     mode,
-    birthYear: world.nowYear,
-    year: world.nowYear,
+    birthYear: opts.year ?? world.nowYear,
+    year: opts.year ?? world.nowYear,
     age: 0,
     sex,
     born: c.id,

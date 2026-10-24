@@ -16,7 +16,7 @@
   chance:
     base: "clamp(country.u5mr / 500, 0.01, 0.12)"
   outcomes:
-    - effects: { stats: { happiness: -5 }, money: { cash: "-money.income * country.oopHealth * 0.2" }, log: ev.family.child_sick, tags: [family, illness] }
+    - effects: { stats: { happiness: -5 }, money: { cash: "-money.income * country.oopHealth * (owned('insurance') ? 0.3 : 1) * 0.2" }, log: ev.family.child_sick, tags: [family, illness] }
   tone: neutral
 
 - id: family.anniversary

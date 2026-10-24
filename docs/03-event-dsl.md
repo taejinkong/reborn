@@ -215,4 +215,8 @@ ai:
 - 직업 필드: `where`(지역·소득그룹 제한), `risks`(일하는 동안 사망 원인 가중치). 직업별 사건은 `when.if: "job == 'nurse'"`나 `jobSector`로 건다
 - 파일 구성: `content/events/*.yaml`(사건·갈림길), `content/jobs/*.yaml`, `content/i18n/ko.yaml` + `content/i18n/ko/*.yaml`(문장, 키 중복 시 빌드 실패)
 - 시뮬레이션 기반 점검: `npm run content:report` (사건별 발생 비율, 한 번도 안 일어나는 사건, 한 삶의 분량) → [content-report.md](content-report.md)
+- **물건** (`content/items.yaml`): `price`(식), `minAge`, `available`, `joy`, `yearly`, `upkeep`, `life`, `resale`
+- **행동** (`content/actions/*.yaml`, `kind: action`): `category`(money·items·career·love·health·life), `available`, `cooldown`, `amount: { of, min, max }`(고른 금액은 식에서 `amount`), `resolve`(갈림길 선택지와 같은 형식)
+- **재산 효과** `finance`: `deposit`, `stocks`(양수면 현금에서 넣고 음수면 꺼냄), `repay`, `buyHome`, `sellHome`, `buyProperty`, `sellProperty`, `saveRate`. 물건 효과 `buy`, `sell`
+- 표현식 추가: `money.deposit/stocks/home/property/netWorth/saveRateNow`, `owns`, `owned('물건')`, `prices.home/property`, `family.partnerAge`
 - 아직 없음: 연쇄 갈림길 전용 문법(`next`) — 지금은 `schedule`로 다음 해에 이어 붙인다

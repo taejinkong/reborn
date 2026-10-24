@@ -16,7 +16,7 @@ function yamlFiles(dir: string): string[] {
   });
 }
 
-const raw = { events: [] as unknown[], focus: [] as unknown[], jobs: [] as unknown[], i18n: {} as Record<string, Record<string, string>> };
+const raw = { events: [] as unknown[], focus: [] as unknown[], jobs: [] as unknown[], items: [] as unknown[], actions: [] as unknown[], i18n: {} as Record<string, Record<string, string>> };
 for (const f of yamlFiles(DIR)) {
   const rel = relative(DIR, f);
   const doc = parse(readFileSync(f, 'utf8'));
@@ -30,6 +30,8 @@ for (const f of yamlFiles(DIR)) {
     }
   } else if (rel === 'focus.yaml') raw.focus.push(...doc);
   else if (rel === 'jobs.yaml' || rel.startsWith('jobs/')) raw.jobs.push(...doc);
+  else if (rel === 'items.yaml') raw.items.push(...doc);
+  else if (rel.startsWith('actions/')) raw.actions.push(...doc);
   else if (rel.startsWith('events/') || rel.startsWith('decisions/')) raw.events.push(...doc);
   else throw new Error(`어디에 속하는지 모르는 콘텐츠 파일: ${rel}`);
 }
@@ -46,4 +48,4 @@ if (errs.length) {
 }
 mkdirSync(join(DIR, 'build'), { recursive: true });
 writeFileSync(join(DIR, 'build', 'content.json'), JSON.stringify(parsed.data));
-console.log(`content.json: 사건·갈림길 ${parsed.data.events.length}개, 초점 ${parsed.data.focus.length}개, 직업 ${parsed.data.jobs.length}개`);
+console.log(`content.json: 사건·갈림길 ${parsed.data.events.length}개, 행동 ${parsed.data.actions.length}개, 물건 ${parsed.data.items.length}개, 초점 ${parsed.data.focus.length}개, 직업 ${parsed.data.jobs.length}개`);

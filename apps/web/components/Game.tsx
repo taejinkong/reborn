@@ -6,10 +6,12 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { EDU_LABEL, HOUSEHOLD_LABEL, SCHOOL_LABEL, SEX_LABEL, num, pct, ppp } from '@/lib/format';
 import { addLife, loadCurrent, loadSettings, saveCurrent, saveSettings, type LifeSummary, type Settings } from '@/lib/storage';
 import { summarize } from '@/lib/summary';
+import { Actions } from './Actions';
 import { Certificate } from './Certificate';
 import { DeathRecord } from './DeathRecord';
 import { DecisionDialog } from './DecisionDialog';
 import { Feed, entryText } from './Feed';
+import { Finance } from './Finance';
 import { Icon } from './Icon';
 import { LifeGrid } from './LifeGrid';
 import { Scene } from './Scene';
@@ -89,6 +91,7 @@ export function Game() {
   const [paused, setPaused] = useState(false);
   const [fast, setFast] = useState(false);
   const [decision, setDecision] = useState<DecisionDef | null>(null);
+  const [dialog, setDialog] = useState(false);
   const [summary, setSummary] = useState<LifeSummary | null>(null);
   const [freshFrom, setFreshFrom] = useState(0);
   const [, setVersion] = useState(0);
@@ -154,7 +157,7 @@ export function Game() {
 
   // 시간 흐름: 1년 = yearSeconds(pace) / 배속
   useEffect(() => {
-    if (phase !== 'life' || paused || decision || !lifeRef.current || lifeRef.current.p.dead) return;
+    if (phase !== 'life' || paused || decision || dialog || !lifeRef.current || lifeRef.current.p.dead) return;
     const life = lifeRef.current;
     const yearSec = life.yearSeconds(pace);
     let acc = 0, last = performance.now(), raf = 0;
@@ -192,6 +195,14 @@ export function Game() {
     setFreshFrom(life.p.log.length);
     life.choose(id);
     setDecision(null);
+    persist();
+    bump();
+  };
+
+  const act = (id: string, amount?: number) => {
+    const life = lifeRef.current!;
+    setFreshFrom(life.p.log.length);
+    life.act(id, amount);
     persist();
     bump();
   };
@@ -291,6 +302,7 @@ export function Game() {
               <dt className="text-faint">가족</dt><dd>{familyText(life)}</dd>
             </dl>
           </Panel>
+          <Panel title="살림과 재산"><Finance life={life} /></Panel>
         </div>
 
         <div className="space-y-4">
@@ -298,6 +310,9 @@ export function Game() {
             <div className="aspect-[2/1] bg-sunk"><Scene p={p} /></div>
             <p className="px-5 py-4 font-serif text-lg leading-snug" aria-live="polite">{entryText(world, latest, settings.soft)}</p>
           </section>
+          <Panel title="할 수 있는 일">
+            <Actions life={life} onAct={act} onDialog={setDialog} />
+          </Panel>
           <Panel title="올해의 초점">
             <div className="flex flex-wrap gap-2" role="group" aria-label="올해의 초점">
               {life.focusOptions().map((f) => (

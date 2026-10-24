@@ -33,6 +33,8 @@ export interface YearRecord {
   stats: Stats;
   income: number;
   cash: number;
+  /** 순자산 (현금+예금+주식+집+부동산−빚) */
+  netWorth: number;
   focus: string | null;
   edu: EduLevel;
   job: string | null;
@@ -50,6 +52,27 @@ export interface Death {
   cause: string;
 }
 
+/** 돈 (모두 PPP 달러) */
+export interface Money {
+  /** 현금·통장 */
+  cash: number;
+  debt: number;
+  /** 연 소득 */
+  income: number;
+  /** 소득 백분위 0~1 */
+  pct: number;
+  /** 정기예금 */
+  deposit: number;
+  /** 주식 (지수펀드) */
+  stocks: number;
+  /** 내 집 시가 */
+  home: number;
+  /** 임대용 부동산 시가 */
+  property: number;
+  /** 소득 중 저축하는 비율 (null이면 형편에 맞게 자동) */
+  saveRate: number | null;
+}
+
 export interface Person {
   v: 1;
   seed: string;
@@ -65,7 +88,7 @@ export interface Person {
   /** 출생 가정 형편 분위 1(최하)~5(최상) */
   household: number;
   stats: Stats;
-  money: { cash: number; debt: number; income: number; pct: number };
+  money: Money;
   edu: { level: EduLevel; school: SchoolState | null };
   job: string | null;
   jobYears: number;
@@ -79,6 +102,10 @@ export interface Person {
   };
   conditions: string[];
   habits: { smoker: boolean };
+  /** 가진 물건 id → 산 나이 */
+  owns: Record<string, number>;
+  /** 행동 id → 마지막으로 한 나이 (재사용 대기용) */
+  acted: Record<string, number>;
   focus: string | null;
   flags: Record<string, string | number | boolean>;
   /** 한 번 일어난 사건 id → 나이 */

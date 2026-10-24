@@ -63,7 +63,7 @@
 - id: adult.house
   kind: decision
   category: life
-  when: { age: [28, 55], if: "family.married && !flags.homeowner && money.income > 0 && country.income in ['UMC', 'HIC']" }
+  when: { age: [28, 55], if: "family.married && money.home == 0 && money.income > 0 && money.cash + money.deposit >= prices.home * 0.2" }
   chance: 0.12
   title: dec.house.title
   body: dec.house.body
@@ -72,7 +72,7 @@
       label: dec.house.buy
       hint: dec.house.buy.hint
       resolve:
-        effects: { money: { cash: "-money.cash * 0.8", debt: "money.income * 3" }, set: { homeowner: true }, stats: { happiness: 6 }, log: dec.house.buy.ok, tags: [milestone] }
+        effects: { finance: { deposit: "-money.deposit", buyHome: true }, stats: { happiness: 6 }, log: dec.house.buy.ok, tags: [milestone, money] }
     - id: rent
       label: dec.house.rent
       resolve:
@@ -179,7 +179,7 @@
   when: { age: [16, 80], once: false, cooldown: 10 }
   chance: "clamp(country.roadDeaths / 1500, 0.002, 0.05)"
   outcomes:
-    - effects: { stats: { health: -12, happiness: -4 }, money: { cash: "-money.income * country.oopHealth * 0.3" }, log: ev.adult.crash, tags: [illness, setback] }
+    - effects: { stats: { health: -12, happiness: -4 }, money: { cash: "-money.income * country.oopHealth * (owned('insurance') ? 0.3 : 1) * 0.3" }, log: ev.adult.crash, tags: [illness, setback] }
   tone: heavy
   source: [who.road_deaths]
 

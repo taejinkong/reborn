@@ -106,12 +106,17 @@ export interface Country {
   refugeeShare: number;
   /** 이 나라 출신 이주자가 사는 곳과 비율 [국가, 비율][] */
   destinations: [string, number][];
+  /** 예금 금리, 대출 금리, 물가 상승률 (비율, 예: 0.035) */
+  depositRate: number;
+  lendingRate: number;
+  inflation: number;
   /** 추정값으로 채운 필드 이름 */
   estimated: string[];
   /** 원본 레코드 (출처 표시용) */
   raw: CountryRecord;
 }
 
+const finiteOr = (x: number, d: number) => (Number.isFinite(x) ? x : d);
 const num = (r: CountryRecord, f: string) => (r[f] as StatValue | null)?.v ?? NaN;
 const pct = (r: CountryRecord, f: string, cap = 1) => Math.min(cap, num(r, f) / 100);
 
@@ -165,7 +170,20 @@ export function toCountry(r: CountryRecord): Country {
     emigrantShare: r.emigrantShare.v,
     refugeeShare: r.refugeeShare.v,
     destinations: r.destinations.v,
+    // 금리·물가: 자료가 없으면 무난한 기본값 (집단 중앙값으로 채우기 전의 옛 데이터 대비)
+    depositRate: finiteOr(num(r, 'depositRate') / 100, 0.04),
+    lendingRate: finiteOr(num(r, 'lendingRate') / 100, 0.09),
+    inflation: finiteOr(num(r, 'inflation') / 100, 0.04),
     estimated,
     raw: r,
   };
+}
+
+/**
+ * 집값 추정 (PPP 달러). 나라별 공개 집값 통계가 없어 1인당 GDP의 배수로 근사한다 (추정, data/SOURCES.md).
+ * 소득이 낮은 나라일수록 소득 대비 집값 배수가 크고, 도시가 시골보다 비싸다.
+ */
+export function housePrice(c: Country, urban: boolean): number {
+  const k = { LIC: 9, LMC: 9, UMC: 8, HIC: 6.5 }[c.income];
+  return c.gdpPppPc * k * (urban ? 1.4 : 0.7);
 }

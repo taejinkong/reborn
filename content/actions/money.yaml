@@ -1,0 +1,139 @@
+# 돈·투자 행동 (언제든). amount: 고를 수 있는 금액 = of × [min, max]
+
+- id: act.save.more
+  kind: action
+  category: money
+  label: act.save.more
+  hint: act.save.more.hint
+  available: "money.income > 0 && money.saveRateNow < 0.5"
+  resolve:
+    effects: { finance: { saveRate: "money.saveRateNow + 0.1" }, log: act.save.more.ok }
+
+- id: act.save.less
+  kind: action
+  category: money
+  label: act.save.less
+  hint: act.save.less.hint
+  available: "money.income > 0 && money.saveRateNow > 0.05"
+  resolve:
+    effects: { finance: { saveRate: "max(0, money.saveRateNow - 0.1)" }, log: act.save.less.ok }
+
+- id: act.deposit.put
+  kind: action
+  category: money
+  label: act.deposit.put
+  hint: act.deposit.put.hint
+  available: "age >= 15 && money.cash >= 50"
+  amount: { of: money.cash, min: 0.1, max: 1 }
+  resolve:
+    effects: { finance: { deposit: amount }, log: act.deposit.put.ok, tags: [money] }
+
+- id: act.deposit.take
+  kind: action
+  category: money
+  label: act.deposit.take
+  hint: act.deposit.take.hint
+  available: "money.deposit >= 10"
+  amount: { of: money.deposit, min: 0.1, max: 1 }
+  resolve:
+    effects: { finance: { deposit: "-amount" }, log: act.deposit.take.ok, tags: [money] }
+
+- id: act.stocks.buy
+  kind: action
+  category: money
+  label: act.stocks.buy
+  hint: act.stocks.buy.hint
+  available: "age >= 18 && money.cash >= 100 && (country.income in ['UMC', 'HIC'] || urban)"
+  amount: { of: money.cash, min: 0.1, max: 1 }
+  resolve:
+    effects: { finance: { stocks: amount }, log: act.stocks.buy.ok, tags: [money] }
+
+- id: act.stocks.sell
+  kind: action
+  category: money
+  label: act.stocks.sell
+  hint: act.stocks.sell.hint
+  available: "money.stocks >= 10"
+  amount: { of: money.stocks, min: 0.1, max: 1 }
+  resolve:
+    effects: { finance: { stocks: "-amount" }, log: act.stocks.sell.ok, tags: [money] }
+
+- id: act.home.buy
+  kind: action
+  category: money
+  label: act.home.buy
+  hint: act.home.buy.hint
+  available: "age >= 20 && money.home == 0 && money.cash >= prices.home * 0.2"
+  resolve:
+    effects: { finance: { buyHome: true }, stats: { happiness: 6 }, log: act.home.buy.ok, tags: [milestone, money] }
+
+- id: act.home.sell
+  kind: action
+  category: money
+  label: act.home.sell
+  hint: act.home.sell.hint
+  available: "money.home > 0"
+  resolve:
+    effects: { finance: { sellHome: true }, stats: { happiness: -2 }, log: act.home.sell.ok, tags: [money] }
+
+- id: act.property.buy
+  kind: action
+  category: money
+  label: act.property.buy
+  hint: act.property.buy.hint
+  available: "age >= 25 && money.cash >= prices.property * 0.3"
+  cooldown: 3
+  resolve:
+    effects: { finance: { buyProperty: true }, log: act.property.buy.ok, tags: [money] }
+
+- id: act.property.sell
+  kind: action
+  category: money
+  label: act.property.sell
+  hint: act.property.sell.hint
+  available: "money.property > 0"
+  resolve:
+    effects: { finance: { sellProperty: true }, log: act.property.sell.ok, tags: [money] }
+
+- id: act.debt.repay
+  kind: action
+  category: money
+  label: act.debt.repay
+  hint: act.debt.repay.hint
+  available: "money.debt >= 10 && money.cash >= 10"
+  amount: { of: "min(money.cash, money.debt)", min: 0.1, max: 1 }
+  resolve:
+    effects: { finance: { repay: amount }, stats: { happiness: 1 }, log: act.debt.repay.ok, tags: [money] }
+
+- id: act.loan.take
+  kind: action
+  category: money
+  label: act.loan.take
+  hint: act.loan.take.hint
+  available: "age >= 20 && job != null && money.debt < money.income * 3"
+  cooldown: 2
+  amount: { of: "money.income * 2", min: 0.1, max: 1 }
+  resolve:
+    effects: { money: { cash: amount, debt: amount }, log: act.loan.take.ok, tags: [money] }
+
+- id: act.send.family
+  kind: action
+  category: money
+  label: act.send.family
+  hint: act.send.family.hint
+  available: "age >= 16 && money.cash >= 20 && (family.motherAlive || family.fatherAlive || family.children > 0)"
+  cooldown: 1
+  amount: { of: money.cash, min: 0.05, max: 0.5 }
+  resolve:
+    effects: { money: { cash: "-amount" }, stats: { relations: 5, happiness: 2 }, log: act.send.family.ok, tags: [family, money] }
+
+- id: act.donate
+  kind: action
+  category: money
+  label: act.donate
+  hint: act.donate.hint
+  available: "age >= 16 && money.cash >= 20"
+  cooldown: 1
+  amount: { of: money.cash, min: 0.02, max: 0.3 }
+  resolve:
+    effects: { money: { cash: "-amount" }, stats: { happiness: 3, relations: 1 }, log: act.donate.ok, tags: [money] }

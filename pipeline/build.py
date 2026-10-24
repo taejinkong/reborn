@@ -192,8 +192,25 @@ def build_countries():
         out[iso] = c
 
     fill_missing(out)
+    fix_rate_spread(out)
     fill_missing_sexed(out, ("everMarried", "marriageAge", "divorced"))
     return out
+
+
+def fix_rate_spread(out):
+    """예금·대출 금리 중 한쪽만 추정값이면, 같은 소득그룹의 금리차(대출−예금)로 다른 쪽에 맞춘다."""
+    spreads = {}
+    for c in out.values():
+        d, l = c["depositRate"], c["lendingRate"]
+        if not d.get("est") and not l.get("est"):
+            spreads.setdefault(c["income"], []).append(l["v"] - d["v"])
+    for c in out.values():
+        d, l = c["depositRate"], c["lendingRate"]
+        spread = median(spreads.get(c["income"]) or [5.0])
+        if l.get("est") and not d.get("est"):
+            c["lendingRate"] = {"v": round(d["v"] + spread, 2), "y": None, "src": "est:deposit+spread", "est": True}
+        elif d.get("est") and not l.get("est"):
+            c["depositRate"] = {"v": round(max(0.1, l["v"] - spread), 2), "y": None, "src": "est:lending-spread", "est": True}
 
 
 def fill_missing_sexed(out, fields):

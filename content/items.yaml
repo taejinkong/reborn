@@ -1,0 +1,32 @@
+# 살 수 있는 물건. 값은 PPP 달러(추정). joy: 산 순간 행복, yearly: 가진 동안 해마다, upkeep: 해마다 유지비(가격 대비), life: 쓸 수 있는 햇수
+- { id: phone, label: item.phone, hint: item.phone.hint, price: 300, minAge: 12, joy: 4, yearly: { relations: 0.5, happiness: 0.3 }, upkeep: 0.2, life: 4, resale: 0.2 }
+- { id: bike, label: item.bike, hint: item.bike.hint, price: 180, minAge: 7, joy: 3, yearly: { health: 1 }, upkeep: 0.05, life: 8 }
+- id: moto
+  label: item.moto
+  hint: item.moto.hint
+  price: 1600
+  minAge: 18
+  available: "country.region in ['eap', 'sa', 'ssa', 'lac'] || !urban"
+  joy: 5
+  yearly: { happiness: 0.5 }
+  upkeep: 0.12
+  life: 10
+  resale: 0.4
+- { id: car, label: item.car, hint: item.car.hint, price: 18000, minAge: 19, joy: 6, yearly: { happiness: 0.8, relations: 0.3 }, upkeep: 0.12, life: 12, resale: 0.45 }
+- { id: computer, label: item.computer, hint: item.computer.hint, price: 900, minAge: 10, joy: 3, yearly: { knowledge: 1.5 }, upkeep: 0.04, life: 5, resale: 0.2 }
+- { id: tv, label: item.tv, hint: item.tv.hint, price: 450, minAge: 0, joy: 3, yearly: { happiness: 0.6, health: -0.3 }, upkeep: 0.02, life: 8, resale: 0.1 }
+- { id: books, label: item.books, hint: item.books.hint, price: 300, minAge: 8, joy: 2, yearly: { knowledge: 1 }, upkeep: 0.05, life: 25, resale: 0.1 }
+- { id: instrument, label: item.instrument, hint: item.instrument.hint, price: 700, minAge: 6, joy: 4, yearly: { happiness: 1 }, upkeep: 0.03, life: 20, resale: 0.4 }
+- { id: pet, label: item.pet, hint: item.pet.hint, price: 250, minAge: 6, joy: 6, yearly: { happiness: 1.5, relations: 0.5, health: 0.3 }, upkeep: 1.2, life: 13, resale: 0 }
+- { id: gym, label: item.gym, hint: item.gym.hint, price: 450, minAge: 15, joy: 1, yearly: { health: 2, happiness: 0.3 }, upkeep: 1, life: 99, resale: 0 }
+- id: insurance
+  label: item.insurance
+  hint: item.insurance.hint
+  price: "max(80, money.income * 0.04)"
+  minAge: 18
+  available: "country.oopHealth > 0.1"
+  joy: 0
+  yearly: {}
+  upkeep: 1
+  life: 99
+  resale: 0

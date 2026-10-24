@@ -1,6 +1,6 @@
 // 통계·생명표·콘텐츠를 묶은 "세계". 삶은 세계 위에서 만들어진다.
 import { defaultCalibration, type CalibrationFile, type CountryCalibration } from './calibration.ts';
-import { ContentBundle, type Content, type EventDef, type FocusDef, type JobDef } from './content.ts';
+import { ContentBundle, type ActionDef, type Content, type EventDef, type FocusDef, type ItemDef, type JobDef } from './content.ts';
 import { toCountry, type CountriesFile, type Country, type LifetableFile } from './data.ts';
 import type { Sex } from './state.ts';
 
@@ -20,6 +20,8 @@ export class World {
   readonly events: Map<string, EventDef>;
   readonly focus: Map<string, FocusDef>;
   readonly jobs: Map<string, JobDef>;
+  readonly items: Map<string, ItemDef>;
+  readonly actions: Map<string, ActionDef>;
   private readonly q: LifetableFile['q'];
   private readonly maxAge: number;
   private readonly calib: Record<string, CountryCalibration>;
@@ -35,6 +37,18 @@ export class World {
     this.events = new Map(this.content.events.map((e) => [e.id, e]));
     this.focus = new Map(this.content.focus.map((f) => [f.id, f]));
     this.jobs = new Map(this.content.jobs.map((j) => [j.id, j]));
+    this.items = new Map(this.content.items.map((it) => [it.id, it]));
+    // 물건마다 사기·팔기 행동을 만든다
+    for (const it of this.content.items) {
+      const cond = it.available !== undefined ? ` && (${it.available})` : '';
+      this.content.actions.push(
+        { id: `item.buy.${it.id}`, kind: 'action', category: 'items', label: it.label, hint: it.hint, cooldown: 0, tone: 'light', source: [],
+          available: `age >= ${it.minAge} && !owned('${it.id}') && money.cash >= (${it.price})${cond}`, resolve: { effects: { buy: it.id } } },
+        { id: `item.sell.${it.id}`, kind: 'action', category: 'items', label: it.label, hint: 'act.item.sell.hint', cooldown: 0, tone: 'neutral', source: [],
+          available: `owned('${it.id}')`, resolve: { effects: { sell: it.id } } },
+      );
+    }
+    this.actions = new Map(this.content.actions.map((a) => [a.id, a]));
     this.calibrationFile = input.calibration ?? null;
     // 예전 보정 파일에 없는 계수는 기본값으로 채운다
     this.calib = Object.fromEntries(Object.entries(input.calibration?.countries ?? {}).map(([id, c]) => [id, { ...defaultCalibration(), ...c }]));

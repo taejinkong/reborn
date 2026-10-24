@@ -50,5 +50,6 @@ export function render(world: World, e: LogEntry, lang = 'ko'): string {
   const params: Record<string, string | number> = { ...(e.params ?? {}) };
   if (typeof params.country === 'string') params.country = countryName(world, params.country, lang);
   if (typeof params.job === 'string') params.job = world.text(params.job, lang);
+  if (typeof params.item === 'string') params.item = world.text(params.item, lang);
   return format(world.text(e.key, lang), params);
 }

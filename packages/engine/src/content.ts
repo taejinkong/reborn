@@ -39,6 +39,20 @@ export const Effects = z.object({
   schedule: z.object({ event: z.string(), in: z.number().int().positive() }).strict().optional(),
   /** 사망 원인 가중치 보정. 사건은 직접 죽이지 않고 원인 분포만 바꾼다. */
   causeHint: z.object({ cause: z.string(), k: z.number().positive() }).strict().optional(),
+  /** 재산 옮기기 (PPP 달러, 양수면 현금에서 넣고 음수면 꺼내 현금으로). home·property는 사고팔 때 대출과 함께 계산 */
+  finance: z.object({
+    deposit: Expr.optional(),
+    stocks: Expr.optional(),
+    repay: Expr.optional(),
+    buyHome: z.boolean().optional(),
+    sellHome: z.boolean().optional(),
+    buyProperty: z.boolean().optional(),
+    sellProperty: z.boolean().optional(),
+    saveRate: Expr.optional(),
+  }).strict().optional(),
+  /** 물건 사기·팔기 (물건 id) */
+  buy: z.string().optional(),
+  sell: z.string().optional(),
   log: z.string().optional(),
   tags: z.array(z.string()).optional(),
 }).strict();
@@ -122,6 +136,43 @@ export const Job = z.object({
   risks: z.record(z.string(), z.number().positive()).optional(),
 }).strict();
 
+/** 살 수 있는 물건. 값은 PPP 달러. */
+export const Item = z.object({
+  id: z.string(),
+  label: z.string(),
+  hint: z.string(),
+  price: Expr,
+  minAge: z.number().default(0),
+  available: Expr.optional(),
+  /** 산 순간의 행복 */
+  joy: z.number().default(0),
+  /** 가지고 있는 동안 해마다의 상태값 변화 */
+  yearly: z.record(z.enum(STAT_KEYS), z.number()).default({}),
+  /** 해마다 드는 유지비 (가격 대비 비율) */
+  upkeep: z.number().min(0).default(0),
+  /** 쓸 수 있는 햇수 (지나면 낡아서 없어진다) */
+  life: z.number().int().positive().default(99),
+  /** 팔 때 받는 값 (가격 대비, 해마다 줄어든다) */
+  resale: z.number().min(0).max(1).default(0.3),
+}).strict();
+
+/** 플레이어가 원할 때 고르는 행동 */
+export const Action = z.object({
+  id: z.string(),
+  kind: z.literal('action'),
+  category: z.enum(['money', 'items', 'career', 'love', 'health', 'life']),
+  label: z.string(),
+  hint: z.string().optional(),
+  available: Expr.default(true),
+  /** 다시 할 수 있기까지 햇수 */
+  cooldown: z.number().int().nonnegative().default(0),
+  /** 금액을 고르는 행동: 기준 금액(식)의 몇 %까지 */
+  amount: z.object({ of: Expr, min: z.number().min(0).max(1).default(0.1), max: z.number().min(0).max(1).default(1) }).strict().optional(),
+  resolve: z.lazy(() => Resolve),
+  tone: Tone,
+  source: z.array(z.string()).default([]),
+}).strict();
+
 export type HappeningDef = z.infer<typeof Happening>;
 export type DecisionDef = z.infer<typeof Decision>;
 export type EventDef = HappeningDef | DecisionDef;
@@ -129,18 +180,22 @@ export type EffectsDef = z.infer<typeof Effects>;
 export type ChanceDef = z.infer<typeof Chance>;
 export type FocusDef = z.infer<typeof Focus>;
 export type JobDef = z.infer<typeof Job>;
+export type ItemDef = z.infer<typeof Item>;
+export type ActionDef = z.infer<typeof Action>;
 
 export const ContentBundle = z.object({
   events: z.array(z.union([Happening, Decision])),
   focus: z.array(Focus),
   jobs: z.array(Job),
+  items: z.array(Item).default([]),
+  actions: z.array(Action).default([]),
   i18n: z.record(z.string(), z.record(z.string(), z.string())),
 });
 export type Content = z.infer<typeof ContentBundle>;
 
 /** 표현식이 쓸 수 있는 최상위 이름과 함수 (린트 기준) */
-export const SCOPE_ROOTS = ['age', 'sex', 'year', 'stats', 'money', 'edu', 'job', 'family', 'flags', 'country', 'household', 'urban', 'habits', 'focus', 'retired', 'migrant', 'rates', 'jobSector'];
-export const SCOPE_FNS = ['has', 'clamp', 'min', 'max', 'rand', 'did', 'pct'];
+export const SCOPE_ROOTS = ['age', 'sex', 'year', 'stats', 'money', 'edu', 'job', 'family', 'flags', 'country', 'household', 'urban', 'habits', 'focus', 'retired', 'migrant', 'rates', 'jobSector', 'owns', 'amount', 'prices'];
+export const SCOPE_FNS = ['has', 'clamp', 'min', 'max', 'rand', 'did', 'pct', 'owned'];
 
 /** 콘텐츠 검증. 문제 목록을 돌려준다(빈 배열이면 통과). */
 export function lintContent(c: Content): string[] {
@@ -176,6 +231,8 @@ export function lintContent(c: Content): string[] {
     if (ef.money) Object.entries(ef.money).forEach(([k, v]) => checkExpr(`${where}.money.${k}`, v));
     needKey(where, ef.log);
     if (ef.schedule && !c.events.some((e) => e.id === ef.schedule!.event)) errs.push(`${where}: 예약 대상 없음 '${ef.schedule.event}'`);
+    if (ef.finance) Object.entries(ef.finance).forEach(([k, v]) => checkExpr(`${where}.finance.${k}`, v));
+    for (const id of [ef.buy, ef.sell]) if (id && !c.items.some((it) => it.id === id)) errs.push(`${where}: 없는 물건 '${id}'`);
   };
 
   for (const e of c.events) {
@@ -208,5 +265,26 @@ export function lintContent(c: Content): string[] {
   }
   for (const f of c.focus) { needKey(`focus.${f.id}`, f.label); needKey(`focus.${f.id}`, f.hint); checkExpr(`focus.${f.id}.if`, f.if); checkExpr(`focus.${f.id}.auto`, f.auto); }
   for (const j of c.jobs) needKey(`job.${j.id}`, j.label);
+  const seen = new Set<string>();
+  for (const it of c.items) {
+    if (seen.has(it.id)) errs.push(`item.${it.id}: 중복 id`);
+    seen.add(it.id);
+    needKey(`item.${it.id}`, it.label);
+    needKey(`item.${it.id}`, it.hint);
+    checkExpr(`item.${it.id}.price`, it.price);
+    checkExpr(`item.${it.id}.available`, it.available);
+  }
+  for (const a of c.actions) {
+    if (ids.has(a.id) || seen.has(a.id)) errs.push(`${a.id}: 중복 id`);
+    seen.add(a.id);
+    needKey(a.id, a.label);
+    needKey(a.id, a.hint);
+    checkExpr(`${a.id}.available`, a.available);
+    if (a.amount) checkExpr(`${a.id}.amount.of`, a.amount.of);
+    checkChance(`${a.id}.chance`, a.resolve.chance);
+    checkEffects(`${a.id}.success`, a.resolve.success);
+    checkEffects(`${a.id}.fail`, a.resolve.fail);
+    checkEffects(`${a.id}.effects`, a.resolve.effects);
+  }
   return errs;
 }

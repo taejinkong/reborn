@@ -41,7 +41,9 @@
 |---|---|
 | `age`, `sex`('F'/'M'), `year` | 나이, 성별, 연도 |
 | `stats.health/happiness/knowledge/relations` | 상태값 0~100 |
-| `money.cash/debt/income/pct` | 재산, 빚, 연 소득(PPP 달러), 소득 백분위 0~1 |
+| `money.cash/debt/income/pct` | 현금, 빚, 연 소득(PPP 달러), 소득 백분위 0~1 |
+| `money.deposit/stocks/home/property/netWorth/saveRateNow` | 예금, 주식, 내 집, 임대 부동산, 순자산, 지금 저축률 |
+| `owned('물건')`, `prices.home/property` | 물건을 가졌는지, 이 나라·지역의 집값 |
 | `edu.level/rank/inSchool/stage` | 학력('none'…'graduate'), 학력 순위 0~4, 재학 여부, 학교 단계 |
 | `job`, `jobSector` | 직업 id, 직업 분야('agri'/'industry'/'service'/'public') |
 | `family.partner/married/children/motherAlive/fatherAlive/siblings` | 가족 |

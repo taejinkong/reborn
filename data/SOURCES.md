@@ -11,8 +11,9 @@
 | `wdi` (ILO) | ILO 모형 추정, WDI 재배포 | lfpF, lfpM (15~64세 경제활동참가율), unemployment | CC BY 4.0 | World Bank, WDI; 원 출처 ILO |
 | `ims2024` | UN DESA, International Migrant Stock 2024 (출신국×목적지) | emigrantShare (출생자 중 해외 거주 비율), emigrants, destinations (목적지 상위 15곳 비율) | CC BY 3.0 IGO (파일 내 명시) | United Nations, DESA, Population Division (2024). International Migrant Stock 2024. |
 | `unhcr2024` | UNHCR Refugee Data Finder (API, 2024) | refugeeShare (해외 거주자 중 난민·비호 신청자·국제 보호 필요 인구 비율) | CC BY 4.0 (UNHCR 공식 R 패키지·세계은행 재배포 표기 기준) — **출시 전 UNHCR 이용 약관 원문 확인 필요** | UNHCR Refugee Data Finder |
+| `wdi` (금융) | 세계은행 WDI (IMF 국제금융통계 등) | depositRate (예금 금리), lendingRate (대출 금리), inflation (물가 상승률) | CC BY 4.0 | World Bank, WDI |
 | `wdi` | World Bank, World Development Indicators | gdpPppPc, gini, urban, agriEmployment, primaryEnroll, secondaryEnroll, tertiaryEnroll, literacy, schoolYears, mmr, hivPrev, homicide, roadDeaths, smokingF/M, oopHealth, childMarriage | CC BY 4.0 | World Bank, World Development Indicators. |
-| `est:group-median` | 같은 지역·소득그룹 → 소득그룹 → 지역 순서의 중앙값 | 결측 보완 | — | 화면에 "추정" 표기 |
+| `est:group-median`, `est:deposit+spread`, `est:lending-spread` | 같은 지역·소득그룹 → 소득그룹 → 지역 순서의 중앙값 | 결측 보완 | — | 화면에 "추정" 표기 |
 
 WDI 지표 중 일부는 다른 기관(WHO, UNESCO UIS, ILO, UNAIDS, UNODC, UNICEF)이 원 출처다. 각 지표의 원 출처는 WDI 메타데이터에서 확인할 수 있다.
 
@@ -45,6 +46,11 @@ WDI 지표 중 일부는 다른 기관(WHO, UNESCO UIS, ILO, UNAIDS, UNODC, UNIC
 
 콘텐츠(사건·갈림길·초점)나 통계를 바꾸면 `npm run calibrate`로 다시 만든다. `check` 항목에 국가별 검증 결과(보정에 쓰지 않은 시드)가 들어 있다. 자동 결정 모드의 선택 경향을 기준으로 맞추므로, 플레이어가 다르게 고르면 결과도 달라진다(의도된 동작).
 
+## 금융 데이터 메모
+
+- 예금·대출 금리 중 한쪽만 실제 값이면 같은 소득그룹의 금리차(대출 − 예금)로 다른 쪽을 맞춘다 (`est:deposit+spread`, `est:lending-spread`)
+- 엔진은 실질 금리(금리 − 물가)로 예금과 빚을 계산한다
+
 ## 이주 데이터 메모
 
 - 해외 거주 비율 = 해외 거주 출생자 / (국내 거주 출생자 + 해외 거주 출생자). 국내 거주 출생자 = WPP 인구 − 국내 이민자 수
@@ -66,6 +72,8 @@ WDI 지표 중 일부는 다른 기관(WHO, UNESCO UIS, ILO, UNAIDS, UNODC, UNIC
 | 결혼 위험률(평균 초혼 연령 중심 정규분포, 표준편차 5년), 조혼의 12~17세 분포, 재혼 확률(연 5% 기준) | `packages/engine/src/calibration.ts` |
 | 결혼 기간별 이혼 위험 모양, 경제활동 상태 전환율(연 15%), 구직 성공 기준 확률 | `packages/engine/src/calibration.ts` |
 | 노동 이주 나이 모양(27세 중심, 18~50세), 피란 위험(나이 무관), 귀국 고민 확률(노동 이주 연 5%, 피란 연 3%) | `packages/engine/src/calibration.ts` |
+| 집값 (1인당 GDP × 소득그룹별 배수 6.5~9, 도시 1.4배·시골 0.7배), 임대수익률 4%, 주식 실질 기대수익률 4.5~5.5%·변동성 17~28%(소득그룹별)·연 4% 확률의 폭락 | `packages/engine/src/data.ts`, `life.ts` |
+| 물건 가격·유지비·수명 (PPP 달러) | `content/items.yaml` |
 | 첫 세대 이주자의 소득 순위 불이익(직업 범위 안 위치 −0.15), 피란 시 재산·건강·행복 감소 | `packages/engine/src/life.ts` |
 
 ## 아직 포함하지 않은 데이터

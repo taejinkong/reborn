@@ -1,14 +1,14 @@
 // 한 사람의 삶을 1년 단위로 진행한다.
 import { bornPerson, type BirthOptions } from './birth.ts';
-import type { ChanceDef, DecisionDef, EffectsDef, EventDef, FocusDef, HappeningDef, JobDef } from './content.ts';
+import type { ActionDef, ChanceDef, DecisionDef, EffectsDef, EventDef, FocusDef, HappeningDef, ItemDef, JobDef } from './content.ts';
 import { EDU_LEVELS } from './content.ts';
-import type { Country } from './data.ts';
+import { housePrice, type Country } from './data.ts';
 import { compile, type Expr, type Scope } from './expr.ts';
 import { clamp, lognormalIncome, oddsNormalizer, scaleOdds } from './math.ts';
 import { jobFindProb, laborShare, personRates } from './calibration.ts';
 import { SENSITIVE_CAUSES, deathProbability, drawCause, expectedHealth, mortalityMultiplier, rawMortalityMultiplier } from './mortality.ts';
 import { Rng } from './rng.ts';
-import type { Kin, LogEntry, Person, StatKey, Tone } from './state.ts';
+import type { Kin, LogEntry, Money, Person, StatKey, Tone } from './state.ts';
 import type { World } from './world.ts';
 
 /** 연간 무작위 사건 최대 개수 */
@@ -21,6 +21,21 @@ const LABOR_SHARE = 0.6;
 const LABOR_TURNOVER = 0.15;
 /** 첫 세대 이주자의 소득 순위 불이익 (직업 범위 안 위치, 추정) */
 const MIGRANT_PAY_GAP = 0.15;
+/** 임대 부동산의 순 임대수익률 (추정) */
+const RENT_YIELD = 0.04;
+/** 주식(지수펀드) 실질 기대수익률과 변동성 (소득그룹별 추정) */
+const MARKET = { HIC: [0.045, 0.17], UMC: [0.05, 0.22], LMC: [0.055, 0.25], LIC: [0.05, 0.28] } as const;
+/** 투자 부동산 가격 (집값 대비) */
+const PROPERTY_K = 0.6;
+
+/** 옛 저장본에 없는 필드를 채운다 */
+function normalize(p: Person): Person {
+  const old = p.money as Partial<Money> & Pick<Money, 'cash' | 'debt' | 'income' | 'pct'>;
+  p.money = { deposit: 0, stocks: 0, home: 0, property: 0, saveRate: null, ...old };
+  p.owns ??= {};
+  p.acted ??= {};
+  return p;
+}
 
 export interface YearResult {
   age: number;
@@ -51,7 +66,7 @@ export class Life {
 
   constructor(world: World, person: Person) {
     this.world = world;
-    this.p = person;
+    this.p = normalize(person);
     this.rng = new Rng(person.rng);
   }
 
@@ -82,12 +97,16 @@ export class Life {
         sex: p.sex,
         year: p.year,
         stats: p.stats,
-        money: p.money,
+        money: { ...p.money, netWorth: this.netWorth(), saveRateNow: p.money.saveRate ?? this.defaultSaveRate() },
+        owns: p.owns,
+        amount: this.pendingAmount,
+        prices: { home: housePrice(c, p.urban), property: housePrice(c, p.urban) * PROPERTY_K },
         edu: { level: p.edu.level, rank: EDU_LEVELS.indexOf(p.edu.level), inSchool: !!p.edu.school, stage: p.edu.school?.stage ?? null },
         job: p.job,
         jobSector: p.job ? this.world.jobs.get(p.job)?.sector ?? null : null,
         family: {
           partner: !!p.family.partner,
+          partnerAge: p.family.partner?.age ?? 0,
           married: !!p.family.partner?.married,
           children: p.family.children.filter((k) => k.alive).length,
           motherAlive: p.family.mother.alive,
@@ -107,6 +126,7 @@ export class Life {
       },
       fns: {
         has: (id) => p.conditions.includes(id as string),
+        owned: (id) => (id as string) in p.owns,
         did: (id) => (id as string) in p.done,
         clamp: (x, lo, hi) => clamp(x as number, lo as number, hi as number),
         min: (...xs) => Math.min(...(xs as number[])),
@@ -182,6 +202,7 @@ export class Life {
     this.naturalChange();
     this.schoolYear();
     this.workYear();
+    this.financeYear(!!opts.autoFocus);
     this.familyYear();
     const decision = this.eventsYear();
     const died = this.deathCheck();
@@ -189,7 +210,7 @@ export class Life {
 
     p.history.push({
       age: p.age, year: p.year, stats: { ...p.stats }, income: Math.round(p.money.income),
-      cash: Math.round(p.money.cash), focus: p.focus, edu: p.edu.level, job: p.job,
+      cash: Math.round(p.money.cash), netWorth: Math.round(this.netWorth()), focus: p.focus, edu: p.edu.level, job: p.job,
     });
     const result: YearResult = { age: p.age, year: p.year, entries: p.log.slice(from), decision: died ? null : decision, died };
     if (!died) { p.age++; p.year++; }
@@ -280,16 +301,195 @@ export class Life {
       delete p.flags.choosingPath;
       this.laborYear();
     }
-    if (p.money.income > 0) {
-      const saveRate = 0.03 + 0.17 * p.money.pct;
-      p.money.cash += p.money.income * saveRate;
-      this.addStat('happiness', (p.money.pct - 0.5) * 2);
+  }
+
+  // ── 재산 ──────────────────────────────────────────────────
+  /** 형편에 맞는 기본 저축률 */
+  defaultSaveRate(): number {
+    return 0.03 + 0.17 * this.p.money.pct;
+  }
+
+  netWorth(): number {
+    const m = this.p.money;
+    return m.cash + m.deposit + m.stocks + m.home + m.property - m.debt;
+  }
+
+  itemPrice(it: ItemDef): number {
+    return Math.max(0, Number(run(it.price, this.scope())));
+  }
+
+  /** 올해의 주식시장 수익률 (로그 수익률, 실질). 드물게 폭락이 끼어든다 */
+  private marketReturn(): number {
+    const [mu, sigma] = MARKET[this.country.income];
+    let r = mu - (sigma * sigma) / 2 + sigma * this.rng.normal();
+    if (this.rng.chance(0.04)) r -= 0.25;
+    return r;
+  }
+
+  private financeYear(auto: boolean): void {
+    const p = this.p, c = this.country, m = p.money;
+    // 저축: 소득 중 저축률만큼 남는다. 기본보다 많이 쓰면 그만큼 행복이 조금 오르고, 아끼면 조금 내린다
+    if (m.income > 0) {
+      const base = this.defaultSaveRate();
+      const rate = m.saveRate ?? base;
+      m.cash += m.income * rate;
+      this.addStat('happiness', (m.pct - 0.5) * 2 + (base - rate) * 15);
     }
-    if (p.money.debt > 0) {
-      const pay = Math.min(p.money.debt, Math.max(0, p.money.cash) * 0.5);
-      p.money.debt = p.money.debt * 1.05 - pay;
-      p.money.cash -= pay;
+    // 물건: 유지비와 해마다의 효과. 수명이 다하면 없어진다
+    for (const [id, boughtAt] of Object.entries(p.owns)) {
+      const it = this.world.items.get(id);
+      if (!it) { delete p.owns[id]; continue; }
+      if (p.age - boughtAt >= it.life) {
+        delete p.owns[id];
+        this.log('sys.item.worn', 'neutral', { item: it.label });
+        continue;
+      }
+      m.cash -= this.itemPrice(it) * it.upkeep;
+      for (const [k, d] of Object.entries(it.yearly)) this.addStat(k as StatKey, d);
     }
+    // 수익: 예금은 실질 금리, 주식은 시장 수익률, 집값은 완만하게 오르내린다
+    m.deposit *= 1 + clamp(c.depositRate - c.inflation, -0.15, 0.08);
+    const market = this.marketReturn();
+    p.flags.market = Math.round(market * 1000) / 1000;
+    if (m.stocks > 0) {
+      m.stocks *= Math.exp(market);
+      if (market < -0.2) this.log('sys.market.crash', 'neutral', undefined, ['money', 'setback']);
+      else if (market > 0.22) this.log('sys.market.boom', 'light', undefined, ['money', 'luck']);
+    }
+    const house = 0.01 + this.rng.normal() * 0.05;
+    m.home *= Math.exp(house);
+    m.property *= Math.exp(house + this.rng.normal() * 0.02);
+    m.cash += m.property * RENT_YIELD;
+    // 빚: 실질 대출 금리로 불어나고, 남는 현금의 절반으로 갚는다
+    if (m.debt > 0) {
+      m.debt *= 1 + clamp(c.lendingRate - c.inflation, 0.02, 0.3);
+      const pay = Math.min(m.debt, Math.max(0, m.cash) * 0.5);
+      m.debt -= pay;
+      m.cash -= pay;
+      if (m.debt < 1) m.debt = 0;
+    }
+    // 현금이 모자라면 예금 → 주식 순서로 헐고, 그래도 모자라면 빚
+    if (m.cash < 0) {
+      for (const k of ['deposit', 'stocks'] as const) {
+        const take = Math.min(m[k], -m.cash);
+        m[k] -= take;
+        m.cash += take;
+      }
+      if (m.cash < 0) { m.debt -= m.cash; m.cash = 0; }
+    }
+    // 감당할 수 없는 빚이면 부동산을 처분한다
+    const limit = Math.max(m.income, c.gdpPppPc * 0.5) * 8;
+    if (m.debt > limit && (m.property > 0 || m.home > 0)) {
+      for (const k of ['property', 'home'] as const) {
+        if (m.debt <= limit) break;
+        m.debt -= m[k] * 0.9;
+        m[k] = 0;
+      }
+      if (m.debt < 0) { m.cash -= m.debt; m.debt = 0; }
+      delete p.flags.homeowner;
+      this.log('sys.money.foreclosure', 'heavy', undefined, ['money', 'loss']);
+      this.addStat('happiness', -10);
+    }
+    if (auto) this.autoInvest();
+  }
+
+  /** 자동 결정 모드의 돈 습관: 쓸 돈을 남기고 나머지를 예금·주식에 나눠 둔다 */
+  private autoInvest(): void {
+    const p = this.p, c = this.country, m = p.money;
+    if (p.age < 22) return;
+    if (m.debt > 0 && m.deposit > 0) {
+      const pay = Math.min(m.debt, m.deposit);
+      m.debt -= pay;
+      m.deposit -= pay;
+    }
+    const buffer = Math.max(m.income * 0.5, c.gdpPppPc * 0.2);
+    const extra = m.cash - buffer;
+    if (extra <= 0) return;
+    const stockOk = (c.income === 'HIC' || c.income === 'UMC') && p.stats.knowledge > 45 && p.age < 70;
+    if (stockOk) {
+      m.stocks += extra * 0.5;
+      m.deposit += extra * 0.3;
+      m.cash -= extra * 0.8;
+    } else {
+      m.deposit += extra * 0.6;
+      m.cash -= extra * 0.6;
+    }
+    // 나이가 들면 주식을 조금씩 예금으로 옮긴다
+    if (p.age >= 70 && m.stocks > 0) {
+      const move = m.stocks * 0.2;
+      m.stocks -= move;
+      m.deposit += move;
+    }
+  }
+
+  // ── 행동 (플레이어가 원할 때) ──────────────────────────────
+  private pendingAmount = 0;
+
+  /** 지금 할 수 있는 행동 */
+  availableActions(): ActionDef[] {
+    const p = this.p;
+    if (p.dead || p.pending) return [];
+    const s = this.scope();
+    return this.world.content.actions.filter((a) => {
+      const last = p.acted[a.id];
+      if (last !== undefined && a.cooldown > 0 && p.age - last < a.cooldown) return false;
+      return !!run(a.available, s);
+    });
+  }
+
+  /** 행동의 금액 범위 [최소, 최대] (금액을 고르는 행동만) */
+  actionRange(a: ActionDef): [number, number] | null {
+    if (!a.amount) return null;
+    const base = Math.max(0, Number(run(a.amount.of, this.scope())));
+    return [base * a.amount.min, base * a.amount.max];
+  }
+
+  /** 행동을 한다. amount는 금액을 고르는 행동에서 고른 금액(PPP 달러) */
+  act(id: string, amount?: number): LogEntry[] {
+    const p = this.p;
+    const a = this.availableActions().find((x) => x.id === id);
+    if (!a) throw new Error(`지금 할 수 없는 행동 ${id}`);
+    const from = p.log.length;
+    const range = this.actionRange(a);
+    this.pendingAmount = range ? clamp(amount ?? range[1], range[0], range[1]) : 0;
+    p.acted[id] = p.age;
+    const r = a.resolve;
+    if (r.effects) this.applyEffects(r.effects, a.tone);
+    if (r.chance) {
+      const ok = this.rng.chance(this.chance(r.chance, a.id));
+      const ef = ok ? r.success : r.fail;
+      if (ef) this.applyEffects(ef, a.tone);
+    }
+    this.pendingAmount = 0;
+    this.sync();
+    return p.log.slice(from);
+  }
+
+  private moveMoney(k: 'deposit' | 'stocks', amt: number): void {
+    const m = this.p.money;
+    if (amt > 0) {
+      const x = Math.min(amt, Math.max(0, m.cash));
+      m.cash -= x;
+      m[k] += x;
+    } else if (amt < 0) {
+      const x = Math.min(-amt, m[k]);
+      m[k] -= x;
+      m.cash += x;
+    }
+  }
+
+  /** 집·부동산을 산다. 계약금이 모자라면 사지 못한다 (false) */
+  private buyRealEstate(kind: 'home' | 'property'): boolean {
+    const p = this.p, m = p.money;
+    const price = housePrice(this.country, p.urban) * (kind === 'home' ? 1 : PROPERTY_K);
+    const down = price * (kind === 'home' ? 0.2 : 0.3);
+    if (m.cash < down) return false;
+    const pay = Math.min(m.cash, price);
+    m.cash -= pay;
+    m.debt += price - pay;
+    m[kind] += price;
+    if (kind === 'home') p.flags.homeowner = true;
+    return true;
   }
 
   /** 다른 나라로 옮긴다. 일은 그만두고, 경제활동 상태는 새 나라 기준으로 다시 정한다. */
@@ -386,7 +586,7 @@ export class Life {
     // 동반자가 없는 사람의 출산은 v0에서 다루지 않으므로 배수가 그만큼을 메운다.
     const motherAge = p.sex === 'F' ? p.age : p.family.partner?.age ?? 0;
     if (p.family.partner && motherAge >= 15 && motherAge <= 49) {
-      const want = p.flags.noMoreKids ? 0.15 : 1;
+      const want = p.flags.noMoreKids ? 0.15 : p.flags.wantKids ? 2 : 1;
       const pKid = clamp(c.asfr[Math.floor((motherAge - 15) / 5)] * this.world.calibration(p.country).fert * want, 0, 0.8);
       if (this.rng.chance(pKid)) {
         const sex = this.rng.chance(c.maleShare) ? 'M' : 'F';
@@ -522,6 +722,38 @@ export class Life {
     if (ef.habit?.smoker !== undefined) p.habits.smoker = ef.habit.smoker;
     if (ef.schedule) p.scheduled.push({ event: ef.schedule.event, age: p.age + ef.schedule.in });
     if (ef.causeHint) p.causeHints[ef.causeHint.cause] = (p.causeHints[ef.causeHint.cause] ?? 1) * ef.causeHint.k;
+    if (ef.finance) {
+      const f = ef.finance, m = p.money;
+      if (f.deposit !== undefined) this.moveMoney('deposit', Number(run(f.deposit, s)));
+      if (f.stocks !== undefined) this.moveMoney('stocks', Number(run(f.stocks, s)));
+      if (f.repay !== undefined) {
+        const x = Math.min(Number(run(f.repay, s)), Math.max(0, m.cash), m.debt);
+        m.cash -= x;
+        m.debt -= x;
+      }
+      if (f.buyHome) this.buyRealEstate('home');
+      if (f.buyProperty) this.buyRealEstate('property');
+      if (f.sellHome && m.home > 0) { m.cash += m.home * 0.97; m.home = 0; delete p.flags.homeowner; }
+      if (f.sellProperty && m.property > 0) { m.cash += m.property * 0.95; m.property = 0; }
+      if (f.saveRate !== undefined) {
+        const v = Number(run(f.saveRate, s));
+        m.saveRate = v < 0 ? null : clamp(v, 0, 0.6);
+      }
+    }
+    if (ef.buy && !(ef.buy in p.owns)) {
+      const it = this.world.items.get(ef.buy)!;
+      p.money.cash -= this.itemPrice(it);
+      p.owns[ef.buy] = p.age;
+      this.addStat('happiness', it.joy);
+      this.log('sys.item.bought', 'light', { item: it.label }, ['money']);
+    }
+    if (ef.sell && ef.sell in p.owns) {
+      const it = this.world.items.get(ef.sell)!;
+      const used = Math.max(0, 1 - (p.age - p.owns[ef.sell]) / it.life);
+      p.money.cash += this.itemPrice(it) * it.resale * used;
+      delete p.owns[ef.sell];
+      this.log('sys.item.sold', 'neutral', { item: it.label }, ['money']);
+    }
     if (ef.log) this.log(ef.log, tone, undefined, ef.tags);
     for (const c of ([] as string[]).concat(ef.call ?? [])) this.call(c);
   }

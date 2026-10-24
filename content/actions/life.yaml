@@ -1,0 +1,273 @@
+# 일·공부·사랑·건강·생활 행동 (언제든)
+
+- id: act.job.find
+  kind: action
+  category: career
+  label: act.job.find
+  hint: act.job.find.hint
+  available: "job == null && !retired && !edu.inSchool && age >= 15 && age < 65"
+  cooldown: 1
+  resolve:
+    effects: { set: { outOfLabor: false }, call: job.seek }
+
+- id: act.job.change
+  kind: action
+  category: career
+  label: act.job.change
+  hint: act.job.change.hint
+  available: "job != null"
+  cooldown: 3
+  resolve:
+    chance:
+      base: 0.45
+      odds:
+        - { by: stats.knowledge, beta: 0.04, center: 50 }
+    success: { money: { pct: 0.07 }, stats: { happiness: 3 }, log: act.job.change.ok, tags: [work, new_start] }
+    fail: { stats: { happiness: -2 }, log: act.job.change.fail }
+
+- id: act.job.quit
+  kind: action
+  category: career
+  label: act.job.quit
+  hint: act.job.quit.hint
+  available: "job != null"
+  resolve:
+    effects: { call: job.quit, stats: { happiness: 2 } }
+
+- id: act.side_job
+  kind: action
+  category: career
+  label: act.side_job
+  hint: act.side_job.hint
+  available: "job != null && age < 70"
+  cooldown: 1
+  resolve:
+    effects: { money: { cash: "money.income * 0.15" }, stats: { health: -2, relations: -1 }, log: act.side_job.ok, tags: [work] }
+
+- id: act.retire
+  kind: action
+  category: career
+  label: act.retire
+  hint: act.retire.hint
+  available: "job != null && age >= 55"
+  resolve:
+    effects: { call: retire }
+
+- id: act.edu.university
+  kind: action
+  category: career
+  label: act.edu.university
+  hint: act.edu.university.hint
+  available: "edu.level == 'secondary' && !edu.inSchool && age >= 18 && age <= 45 && money.cash >= country.gdpPppPc * 0.1"
+  cooldown: 2
+  resolve:
+    effects: { money: { cash: "-country.gdpPppPc * 0.1" } }
+    chance:
+      base: "clamp(country.tertiaryEnroll / max(country.secondaryEnroll, 0.05), 0.05, 0.95)"
+      odds:
+        - { by: stats.knowledge, beta: 0.05, center: 50 }
+    success: { call: school.tertiary, stats: { happiness: 5 }, log: act.edu.university.ok, tags: [new_start] }
+    fail: { stats: { happiness: -4 }, log: act.edu.university.fail, tags: [setback] }
+
+- id: act.edu.graduate
+  kind: action
+  category: career
+  label: act.edu.graduate
+  hint: act.edu.graduate.hint
+  available: "edu.level == 'tertiary' && !edu.inSchool && age >= 21 && age <= 50 && money.cash >= country.gdpPppPc * 0.15"
+  cooldown: 2
+  resolve:
+    effects: { money: { cash: "-country.gdpPppPc * 0.15" } }
+    chance:
+      base: 0.5
+      odds:
+        - { by: stats.knowledge, beta: 0.05, center: 60 }
+    success: { call: school.graduate, log: act.edu.graduate.ok, tags: [new_start] }
+    fail: { stats: { happiness: -3 }, log: act.edu.graduate.fail }
+
+- id: act.move.city
+  kind: action
+  category: career
+  label: act.move.city
+  hint: act.move.city.hint
+  available: "!urban && age >= 15"
+  resolve:
+    effects: { call: move.city, stats: { relations: -3 } }
+
+- id: act.move.abroad
+  kind: action
+  category: career
+  label: act.move.abroad
+  hint: act.move.abroad.hint
+  available: "!migrant && age >= 18 && age <= 55 && money.cash >= country.gdpPppPc * 0.2"
+  cooldown: 3
+  resolve:
+    effects: { money: { cash: "-country.gdpPppPc * 0.2" } }
+    chance:
+      base: "clamp(country.emigrantShare * 3 + 0.15, 0.1, 0.6)"
+      odds:
+        - { by: stats.knowledge, beta: 0.03, center: 50 }
+    success: { call: migrate.work }
+    fail: { stats: { happiness: -3 }, log: act.move.abroad.fail, tags: [setback] }
+
+- id: act.move.home
+  kind: action
+  category: career
+  label: act.move.home
+  hint: act.move.home.hint
+  available: "migrant"
+  resolve:
+    effects: { call: migrate.return }
+
+- id: act.love.seek
+  kind: action
+  category: love
+  label: act.love.seek
+  hint: act.love.seek.hint
+  available: "!family.partner && age >= 18 && age <= 75"
+  cooldown: 1
+  resolve:
+    chance:
+      base: "clamp(rates.union * 4 + 0.08, 0.05, 0.6)"
+      odds:
+        - { by: stats.relations, beta: 0.03, center: 55 }
+    success: { family: { partner: true }, stats: { happiness: 6 }, log: act.love.seek.ok, tags: [love] }
+    fail: { stats: { happiness: -1 }, log: act.love.seek.fail }
+
+- id: act.love.propose
+  kind: action
+  category: love
+  label: act.love.propose
+  hint: act.love.propose.hint
+  available: "family.partner && !family.married"
+  cooldown: 1
+  resolve:
+    chance:
+      base: 0.6
+      odds:
+        - { by: stats.relations, beta: 0.03, center: 55 }
+    success: { family: { marry: true }, money: { cash: "-money.cash * 0.2" }, stats: { happiness: 8 }, log: act.love.propose.ok, tags: [love, milestone] }
+    fail: { stats: { happiness: -5, relations: -3 }, log: act.love.propose.fail }
+
+- id: act.kids.want
+  kind: action
+  category: love
+  label: act.kids.want
+  hint: act.kids.want.hint
+  available: "family.partner && !flags.wantKids && ((sex == 'F' && age >= 18 && age <= 44) || (sex == 'M' && family.partnerAge >= 18 && family.partnerAge <= 44))"
+  resolve:
+    effects: { set: { wantKids: true }, unset: [noMoreKids], log: act.kids.want.ok, tags: [family] }
+
+- id: act.kids.stop
+  kind: action
+  category: love
+  label: act.kids.stop
+  hint: act.kids.stop.hint
+  available: "family.partner && !flags.noMoreKids"
+  resolve:
+    effects: { set: { noMoreKids: true }, unset: [wantKids], log: act.kids.stop.ok }
+
+- id: act.divorce
+  kind: action
+  category: love
+  label: act.divorce
+  hint: act.divorce.hint
+  available: "family.married"
+  resolve:
+    effects: { family: { divorce: true }, set: { divorced: true }, money: { cash: "-money.cash * 0.3" }, stats: { happiness: -6, relations: -4 }, log: act.divorce.ok, tags: [loss, family] }
+  tone: heavy
+
+- id: act.family.visit
+  kind: action
+  category: love
+  label: act.family.visit
+  hint: act.family.visit.hint
+  available: "family.motherAlive || family.fatherAlive || family.siblings > 0 || family.children > 0"
+  cooldown: 1
+  resolve:
+    effects: { money: { cash: "-min(money.cash, country.gdpPppPc * 0.01)" }, stats: { relations: 5, happiness: 2 }, log: act.family.visit.ok, tags: [family] }
+
+- id: act.friends
+  kind: action
+  category: love
+  label: act.friends
+  hint: act.friends.hint
+  available: "age >= 10"
+  cooldown: 1
+  resolve:
+    effects: { money: { cash: "-min(money.cash, country.gdpPppPc * 0.005)" }, stats: { relations: 4, happiness: 3 }, log: act.friends.ok }
+
+- id: act.health.checkup
+  kind: action
+  category: health
+  label: act.health.checkup
+  hint: act.health.checkup.hint
+  available: "age >= 25"
+  cooldown: 2
+  resolve:
+    effects: { money: { cash: "-min(money.cash, max(20, money.income * country.oopHealth * 0.03 * (owned('insurance') ? 0.3 : 1)))" }, stats: { health: 3 }, causeHint: { cause: cardio, k: 0.92 }, log: act.health.checkup.ok, tags: [care] }
+
+- id: act.health.quit
+  kind: action
+  category: health
+  label: act.health.quit
+  hint: act.health.quit.hint
+  available: "habits.smoker"
+  cooldown: 1
+  resolve:
+    chance:
+      base: 0.3
+      odds:
+        - { by: stats.health, beta: 0.02, center: 60 }
+    success: { habit: { smoker: false }, stats: { health: 3 }, log: act.health.quit.ok, tags: [recovery] }
+    fail: { stats: { happiness: -2 }, log: act.health.quit.fail }
+
+- id: act.health.diet
+  kind: action
+  category: health
+  label: act.health.diet
+  hint: act.health.diet.hint
+  available: "age >= 15"
+  cooldown: 1
+  resolve:
+    effects: { stats: { health: 2, happiness: -1 }, log: act.health.diet.ok, tags: [care] }
+
+- id: act.health.counsel
+  kind: action
+  category: health
+  label: act.health.counsel
+  hint: act.health.counsel.hint
+  available: "age >= 13"
+  cooldown: 1
+  resolve:
+    effects: { money: { cash: "-min(money.cash, country.gdpPppPc * 0.01 * country.oopHealth * (owned('insurance') ? 0.3 : 1))" }, stats: { happiness: 5, relations: 1 }, log: act.health.counsel.ok, tags: [care] }
+
+- id: act.travel
+  kind: action
+  category: life
+  label: act.travel
+  hint: act.travel.hint
+  available: "age >= 16 && money.cash >= country.gdpPppPc * 0.05 + 200"
+  cooldown: 1
+  resolve:
+    effects: { money: { cash: "-(country.gdpPppPc * 0.05 + 200)" }, stats: { happiness: 6, relations: 2, knowledge: 1 }, log: act.travel.ok, tags: [joy] }
+
+- id: act.learn
+  kind: action
+  category: life
+  label: act.learn
+  hint: act.learn.hint
+  available: "age >= 12"
+  cooldown: 1
+  resolve:
+    effects: { money: { cash: "-min(money.cash, country.gdpPppPc * 0.01)" }, stats: { knowledge: 3, happiness: 1 }, log: act.learn.ok, tags: [growth] }
+
+- id: act.volunteer
+  kind: action
+  category: life
+  label: act.volunteer
+  hint: act.volunteer.hint
+  available: "age >= 14"
+  cooldown: 1
+  resolve:
+    effects: { stats: { relations: 3, happiness: 2 }, log: act.volunteer.ok }

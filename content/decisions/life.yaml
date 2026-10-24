@@ -156,7 +156,7 @@
       label: dec.checkup.go
       hint: dec.checkup.go.hint
       resolve:
-        effects: { stats: { health: 4 }, money: { cash: "-max(money.income * country.oopHealth * 0.05, 20)" }, log: dec.checkup.go.ok, tags: [care] }
+        effects: { stats: { health: 4 }, money: { cash: "-max(money.income * country.oopHealth * (owned('insurance') ? 0.3 : 1) * 0.05, 20)" }, log: dec.checkup.go.ok, tags: [care] }
     - id: skip
       label: dec.checkup.skip
       resolve:

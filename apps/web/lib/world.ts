@@ -7,7 +7,8 @@ let pending: Promise<World> | null = null;
 
 export function loadWorld(): Promise<World> {
   if (!pending) {
-    const get = (name: string) => fetch(`${BASE_PATH}/data/${name}`).then((r) => {
+    const v = process.env.NEXT_PUBLIC_DATA_VERSION ?? 'dev';
+    const get = (name: string) => fetch(`${BASE_PATH}/data/${name}?v=${v}`).then((r) => {
       if (!r.ok) throw new Error(`${name}: ${r.status}`);
       return r.json();
     });

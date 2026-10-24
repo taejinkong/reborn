@@ -1,0 +1,84 @@
+# 돈과 관련된 사건·갈림길
+
+- id: money.inflation_spike
+  kind: happening
+  category: money
+  when: { age: [18, 100], once: false, cooldown: 6, if: "country.inflation > 0.08 && money.cash > 0" }
+  chance: "clamp(country.inflation, 0.05, 0.4)"
+  outcomes:
+    - effects: { money: { cash: "-money.cash * clamp(country.inflation, 0.05, 0.5)" }, stats: { happiness: -3 }, log: ev.money.inflation, tags: [money, setback] }
+  tone: neutral
+  source: [wdi.inflation]
+
+- id: money.bank_failure
+  kind: happening
+  category: money
+  when: { age: [18, 100], once: false, cooldown: 20, if: "money.deposit > 0 && country.income in ['LIC', 'LMC']" }
+  chance: 0.01
+  outcomes:
+    - effects: { money: { cash: "-money.deposit * 0.5" }, finance: { deposit: "-money.deposit * 0.5" }, stats: { happiness: -8 }, log: ev.money.bank_failure, tags: [money, loss] }
+  tone: heavy
+
+- id: money.scam
+  kind: decision
+  category: money
+  when: { age: [25, 85], once: false, cooldown: 10, if: "money.cash + money.deposit > money.income * 0.5 && money.income > 0" }
+  chance: 0.04
+  title: dec.scam.title
+  body: dec.scam.body
+  options:
+    - id: invest
+      label: dec.scam.invest
+      hint: dec.scam.invest.hint
+      resolve:
+        chance: 0.08
+        success: { money: { cash: "(money.cash + money.deposit) * 0.3" }, stats: { happiness: 4 }, log: dec.scam.lucky, tags: [money, luck] }
+        fail: { money: { cash: "-(money.cash + money.deposit) * 0.3" }, stats: { happiness: -8 }, log: dec.scam.lost, tags: [money, loss] }
+    - id: refuse
+      label: dec.scam.refuse
+      resolve:
+        effects: { log: dec.scam.refuse.ok }
+  auto:
+    invest: "100 - stats.knowledge"
+    refuse: "stats.knowledge + 40"
+
+- id: money.friend_loan
+  kind: decision
+  category: money
+  when: { age: [22, 80], once: false, cooldown: 8, if: "money.cash > money.income * 0.2 && money.income > 0" }
+  chance: 0.05
+  title: dec.loan.title
+  body: dec.loan.body
+  options:
+    - id: lend
+      label: dec.loan.lend
+      resolve:
+        effects: { money: { cash: "-money.income * 0.2" } }
+        chance: 0.5
+        success: { money: { cash: "money.income * 0.2" }, stats: { relations: 4 }, log: dec.loan.back, tags: [money] }
+        fail: { stats: { relations: -4, happiness: -3 }, log: dec.loan.gone, tags: [money, setback] }
+    - id: refuse
+      label: dec.loan.refuse
+      resolve:
+        effects: { stats: { relations: -2 }, log: dec.loan.refuse.ok }
+  auto:
+    lend: "stats.relations"
+    refuse: 50
+
+- id: money.tax_refund
+  kind: happening
+  category: money
+  when: { age: [20, 70], once: false, cooldown: 5, if: "job != null && country.income in ['UMC', 'HIC']" }
+  chance: 0.1
+  outcomes:
+    - effects: { money: { cash: "money.income * 0.03" }, stats: { happiness: 1 }, log: ev.money.refund, tags: [money] }
+  tone: light
+
+- id: money.big_repair
+  kind: happening
+  category: money
+  when: { age: [25, 95], once: false, cooldown: 6, if: "money.home > 0" }
+  chance: 0.08
+  outcomes:
+    - effects: { money: { cash: "-money.home * 0.02" }, stats: { happiness: -2 }, log: ev.money.repair, tags: [money] }
+  tone: neutral

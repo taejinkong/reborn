@@ -11,6 +11,7 @@ RANGES = {
     "schoolYears": (0, 15), "mmr": (0, 2000), "hivPrev": (0, 40), "homicide": (0, 150), "roadDeaths": (0, 80),
     "smokingF": (0, 70), "smokingM": (0, 90), "oopHealth": (0, 100), "childMarriage": (0, 90),
     "deathCommShare": (0, 90), "deathNcdShare": (5, 100), "deathInjShare": (0, 60), "ncd3070": (3, 60),
+    "depositRate": (0, 60), "lendingRate": (0, 80), "inflation": (-15, 400),
     "suicide": (0, 60), "diabetesPrev": (0, 40), "lfpF": (3, 95), "lfpM": (20, 100), "unemployment": (0, 40),
 }
 

@@ -95,6 +95,77 @@ describe('삶', () => {
   });
 });
 
+describe('재산과 행동', () => {
+  const adult = (id = 'KOR') => {
+    const l = Life.born(world, { seed: `money:${id}`, country: id, sex: 'F' });
+    l.p.age = 30;
+    l.p.money.cash = 100_000;
+    l.p.money.income = 40_000;
+    return l;
+  };
+  it('예금은 실질 금리만큼 불어난다', () => {
+    const l = adult();
+    l.act('act.deposit.put', 50_000);
+    expect(l.p.money.deposit).toBe(50_000);
+    expect(l.p.money.cash).toBe(50_000);
+    const c = world.country('KOR');
+    l.step();
+    expect(l.p.money.deposit).toBeCloseTo(50_000 * (1 + c.depositRate - c.inflation), 0);
+  });
+  it('집을 사면 계약금을 내고 나머지는 대출이 된다', () => {
+    const l = adult();
+    const before = l.p.money.cash;
+    expect(l.availableActions().some((a) => a.id === 'act.home.buy')).toBe(true);
+    l.act('act.home.buy');
+    const m = l.p.money;
+    expect(m.home).toBeGreaterThan(0);
+    expect(m.cash + m.home - m.debt).toBeCloseTo(before, 0);
+    expect(l.p.flags.homeowner).toBe(true);
+    expect(l.availableActions().some((a) => a.id === 'act.home.buy')).toBe(false);
+  });
+  it('물건을 사고팔 수 있다', () => {
+    const l = adult();
+    l.act('item.buy.car');
+    expect('car' in l.p.owns).toBe(true);
+    expect(l.availableActions().some((a) => a.id === 'item.buy.car')).toBe(false);
+    l.act('item.sell.car');
+    expect('car' in l.p.owns).toBe(false);
+    expect(l.p.log.some((e) => e.key === 'sys.item.sold')).toBe(true);
+  });
+  it('행동의 재사용 대기', () => {
+    const l = adult();
+    l.act('act.travel');
+    expect(l.availableActions().some((a) => a.id === 'act.travel')).toBe(false);
+    l.step();
+    expect(l.availableActions().some((a) => a.id === 'act.travel')).toBe(true);
+  });
+  it('금액은 고를 수 있는 범위로 잘린다', () => {
+    const l = adult();
+    l.act('act.stocks.buy', 10_000_000);
+    expect(l.p.money.stocks).toBe(100_000);
+  });
+  it('옛 저장본(재산 필드 없음)도 읽힌다', () => {
+    const l = Life.born(world, { seed: 'old-save' });
+    const old = JSON.parse(JSON.stringify(l.p));
+    old.money = { cash: 10, debt: 0, income: 0, pct: 0 };
+    delete old.owns;
+    delete old.acted;
+    const r = new Life(world, old);
+    expect(r.p.money.deposit).toBe(0);
+    expect(r.p.owns).toEqual({});
+    r.liveOut();
+    expect(r.p.dead).not.toBeNull();
+  });
+  it('자동 결정 모드에서는 남는 돈을 굴리고 순자산이 기록된다', () => {
+    let invested = 0;
+    for (let i = 0; i < 200; i++) {
+      const l = Life.born(world, { seed: `auto-money:${i}`, country: 'USA' }).liveOut();
+      if (l.p.history.some((h) => h.netWorth > 0) && (l.p.money.stocks > 0 || l.p.money.deposit > 0)) invested++;
+    }
+    expect(invested).toBeGreaterThan(20);
+  });
+});
+
 describe('통계 보정 (몬테카를로)', () => {
   // 보정표(data/build/calibration.json)를 쓴 상태에서, 개인 요인과 선택을 넣고도 국가 통계가 유지되어야 한다.
   // 보정·감사와 같은 측정 코드(scripts/measure.ts)를 쓰고, 보정에 쓰지 않은 시드로 검사한다.

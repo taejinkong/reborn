@@ -2,7 +2,7 @@ export { World, type WorldInput } from './world.ts';
 export { Life, type YearResult, type Observation } from './life.ts';
 export { bornPerson, birthOdds, chooseCountry, randomSeed, type BirthOptions } from './birth.ts';
 export { render, format, countryName } from './text.ts';
-export { lintContent, ContentBundle, type Content, type EventDef, type DecisionDef, type FocusDef, type JobDef } from './content.ts';
+export { lintContent, ContentBundle, type Content, type EventDef, type DecisionDef, type FocusDef, type JobDef, type ActionDef, type ItemDef } from './content.ts';
 export { Rng } from './rng.ts';
 export { lognormalIncome, normInv, scaleOdds, oddsNormalizer } from './math.ts';
 export { MORT_BANDS, mortBand, defaultCalibration, unionHazard, type CalibrationFile, type CountryCalibration } from './calibration.ts';

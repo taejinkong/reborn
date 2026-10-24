@@ -25,10 +25,18 @@ def download(url: str, dest: Path) -> Path:
     return dest
 
 
-def get_json(url: str):
-    req = urllib.request.Request(url, headers=UA)
-    with urllib.request.urlopen(req, timeout=120) as r:
-        return json.loads(r.read().decode("utf-8"))
+def get_json(url: str, retries: int = 4):
+    """JSON을 받는다. 연결이 끊기면 잠시 쉬었다가 다시 시도한다."""
+    import time
+    for attempt in range(retries):
+        try:
+            req = urllib.request.Request(url, headers=UA)
+            with urllib.request.urlopen(req, timeout=120) as r:
+                return json.loads(r.read().decode("utf-8"))
+        except (OSError, ValueError):
+            if attempt == retries - 1:
+                raise
+            time.sleep(3 * (attempt + 1))
 
 
 def write_json(path: Path, obj) -> None:

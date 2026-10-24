@@ -31,6 +31,10 @@ INDICATORS = {
     "lfpF": "SL.TLF.ACTI.FE.ZS",           # 여성 경제활동참가율 (15~64세, %)
     "lfpM": "SL.TLF.ACTI.MA.ZS",           # 남성 경제활동참가율 (15~64세, %)
     "unemployment": "SL.UEM.TOTL.ZS",      # 실업률 (%)
+    # 금융 (IMF·세계은행, WDI)
+    "depositRate": "FR.INR.DPST",          # 예금 금리 (%)
+    "lendingRate": "FR.INR.LEND",          # 대출 금리 (%)
+    "inflation": "FP.CPI.TOTL.ZG",         # 물가 상승률 (%)
 }
 
 # 값이 없으면 집단 중앙값이 아니라 0으로 보는 지표 (자료가 없다는 것은 거의 없다는 뜻)

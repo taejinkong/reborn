@@ -25,7 +25,7 @@
       label: dec.mid.help
       hint: dec.mid.help.hint
       resolve:
-        effects: { stats: { happiness: 6, health: 2 }, money: { cash: "-money.income * country.oopHealth * 0.05" }, log: dec.mid.help.ok, tags: [care] }
+        effects: { stats: { happiness: 6, health: 2 }, money: { cash: "-money.income * country.oopHealth * (owned('insurance') ? 0.3 : 1) * 0.05" }, log: dec.mid.help.ok, tags: [care] }
     - id: endure
       label: dec.mid.endure
       resolve:
@@ -41,7 +41,7 @@
   when: { age: [45, 95], if: "has('hypertension') || habits.smoker" }
   chance: 0.025
   outcomes:
-    - effects: { stats: { health: -14, happiness: -4 }, causeHint: { cause: cardio, k: 1.4 }, money: { cash: "-money.income * country.oopHealth * 0.4" }, log: ev.health.heart, tags: [illness] }
+    - effects: { stats: { health: -14, happiness: -4 }, causeHint: { cause: cardio, k: 1.4 }, money: { cash: "-money.income * country.oopHealth * (owned('insurance') ? 0.3 : 1) * 0.4" }, log: ev.health.heart, tags: [illness] }
   tone: heavy
 
 - id: health.stroke
@@ -73,7 +73,7 @@
       label: dec.cancer.treat
       hint: dec.cancer.treat.hint
       resolve:
-        effects: { set: { cancer: true }, money: { cash: "-money.income * country.oopHealth * 1.5", debt: "money.cash < 0 ? money.income * country.oopHealth : 0" } }
+        effects: { set: { cancer: true }, money: { cash: "-money.income * country.oopHealth * (owned('insurance') ? 0.3 : 1) * 1.5", debt: "money.cash < 0 ? money.income * country.oopHealth : 0" } }
         chance:
           base: "country.income == 'HIC' ? 0.7 : country.income == 'UMC' ? 0.5 : 0.3"
           normalize: false

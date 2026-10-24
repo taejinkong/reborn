@@ -6,7 +6,7 @@
   category: health
   when: { age: [0, 5] }
   chance:
-    base: "clamp(country.u5mr / 150, 0.03, 0.5)"
+    base: "clamp(country.u5mr / 300, 0.02, 0.3)"
     odds:
       - { by: household, beta: -0.3, center: 3 }
   outcomes:
@@ -22,7 +22,7 @@
   category: social
   when: { age: [6, 15] }
   chance:
-    base: 0.12
+    base: 0.06
     odds:
       - { by: stats.relations, beta: 0.03, center: 55 }
   outcomes:

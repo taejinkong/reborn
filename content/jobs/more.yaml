@@ -1,0 +1,49 @@
+# 직업 확장. where: 이 직업이 있는 지역·소득그룹, risks: 일하는 동안 사망 원인 가중치.
+# 농림어업
+- { id: plantation, label: job.plantation, sector: agri, minEdu: none, pct: [0.03, 0.25], weight: 1.2, urban: false, formal: false, where: { regions: [sa, eap, ssa, lac] } }
+- { id: herder, label: job.herder, sector: agri, minEdu: none, pct: [0.04, 0.30], weight: 1, urban: false, formal: false, where: { regions: [ssa, mena, eca, sa, eap] } }
+- { id: forestry, label: job.forestry, sector: agri, minEdu: none, pct: [0.10, 0.40], weight: 0.4, urban: false, formal: false, risks: { injury: 1.5 } }
+- { id: fishfarm, label: job.fishfarm, sector: agri, minEdu: primary, pct: [0.12, 0.45], weight: 0.5, urban: false, formal: false }
+- { id: agrotech, label: job.agrotech, sector: agri, minEdu: tertiary, pct: [0.45, 0.80], weight: 0.3 }
+# 광공업·건설
+- { id: miner, label: job.miner, sector: industry, minEdu: none, pct: [0.20, 0.60], weight: 0.5, formal: false, risks: { injury: 2.0, respiratory: 1.3 }, where: { income: [LIC, LMC, UMC] } }
+- { id: garment, label: job.garment, sector: industry, minEdu: none, pct: [0.10, 0.40], weight: 1.4, urban: true, where: { regions: [sa, eap, mena, lac] } }
+- { id: electrician, label: job.electrician, sector: industry, minEdu: secondary, pct: [0.35, 0.70], weight: 0.7, risks: { injury: 1.3 } }
+- { id: welder, label: job.welder, sector: industry, minEdu: primary, pct: [0.30, 0.65], weight: 0.6, risks: { injury: 1.3, respiratory: 1.2 } }
+- { id: carpenter, label: job.carpenter, sector: industry, minEdu: none, pct: [0.20, 0.60], weight: 0.7, formal: false, risks: { injury: 1.3 } }
+- { id: plumber, label: job.plumber, sector: industry, minEdu: primary, pct: [0.30, 0.65], weight: 0.5 }
+- { id: plantop, label: job.plantop, sector: industry, minEdu: secondary, pct: [0.40, 0.75], weight: 0.5, risks: { injury: 1.2 } }
+- { id: foreman, label: job.foreman, sector: industry, minEdu: secondary, pct: [0.50, 0.80], weight: 0.3 }
+# 서비스
+- { id: rider, label: job.rider, sector: service, minEdu: none, pct: [0.15, 0.45], weight: 0.8, urban: true, formal: false, risks: { road: 1.8 } }
+- { id: guard, label: job.guard, sector: service, minEdu: primary, pct: [0.15, 0.45], weight: 0.8, urban: true }
+- { id: cleaner, label: job.cleaner, sector: service, minEdu: none, pct: [0.08, 0.35], weight: 1, formal: false }
+- { id: hairdresser, label: job.hairdresser, sector: service, minEdu: primary, pct: [0.15, 0.55], weight: 0.6, formal: false }
+- { id: tailor, label: job.tailor, sector: service, minEdu: none, pct: [0.10, 0.45], weight: 0.5, formal: false }
+- { id: waiter, label: job.waiter, sector: service, minEdu: primary, pct: [0.15, 0.45], weight: 1, urban: true }
+- { id: hotel, label: job.hotel, sector: service, minEdu: secondary, pct: [0.25, 0.55], weight: 0.5 }
+- { id: callcenter, label: job.callcenter, sector: service, minEdu: secondary, pct: [0.30, 0.55], weight: 0.5, urban: true }
+- { id: eatery, label: job.eatery, sector: service, minEdu: primary, pct: [0.25, 0.80], weight: 0.5, formal: false }
+- { id: guide, label: job.guide, sector: service, minEdu: secondary, pct: [0.25, 0.65], weight: 0.25 }
+- { id: realtor, label: job.realtor, sector: service, minEdu: secondary, pct: [0.35, 0.85], weight: 0.3, urban: true }
+- { id: teller, label: job.teller, sector: service, minEdu: secondary, pct: [0.40, 0.70], weight: 0.4 }
+- { id: insurance, label: job.insurance, sector: service, minEdu: secondary, pct: [0.30, 0.80], weight: 0.4 }
+- { id: sales, label: job.sales, sector: service, minEdu: secondary, pct: [0.35, 0.80], weight: 0.6 }
+- { id: designer, label: job.designer, sector: service, minEdu: tertiary, pct: [0.45, 0.85], weight: 0.3, urban: true }
+- { id: journalist, label: job.journalist, sector: service, minEdu: tertiary, pct: [0.45, 0.80], weight: 0.2 }
+- { id: lawyer, label: job.lawyer, sector: service, minEdu: graduate, pct: [0.75, 0.98], weight: 0.15 }
+- { id: pharmacist, label: job.pharmacist, sector: service, minEdu: tertiary, pct: [0.60, 0.90], weight: 0.2 }
+- { id: architect, label: job.architect, sector: service, minEdu: tertiary, pct: [0.60, 0.92], weight: 0.15 }
+- { id: marketer, label: job.marketer, sector: service, minEdu: tertiary, pct: [0.55, 0.88], weight: 0.3, urban: true }
+- { id: analyst, label: job.analyst, sector: service, minEdu: tertiary, pct: [0.65, 0.93], weight: 0.25, urban: true }
+- { id: translator, label: job.translator, sector: service, minEdu: tertiary, pct: [0.40, 0.75], weight: 0.15 }
+- { id: artist, label: job.artist, sector: service, minEdu: none, pct: [0.05, 0.85], weight: 0.15, formal: false }
+# 공공·돌봄
+- { id: civilservant, label: job.civilservant, sector: public, minEdu: tertiary, pct: [0.50, 0.82], weight: 0.6 }
+- { id: carer, label: job.carer, sector: public, minEdu: primary, pct: [0.15, 0.45], weight: 0.8 }
+- { id: midwife, label: job.midwife, sector: public, minEdu: tertiary, pct: [0.45, 0.75], weight: 0.2, where: { income: [LIC, LMC] } }
+- { id: healthworker, label: job.healthworker, sector: public, minEdu: secondary, pct: [0.25, 0.55], weight: 0.4, where: { income: [LIC, LMC] } }
+- { id: firefighter, label: job.firefighter, sector: public, minEdu: secondary, pct: [0.40, 0.70], weight: 0.15, risks: { injury: 1.5 } }
+- { id: postal, label: job.postal, sector: public, minEdu: secondary, pct: [0.30, 0.60], weight: 0.3 }
+- { id: professor, label: job.professor, sector: public, minEdu: graduate, pct: [0.70, 0.95], weight: 0.12 }
+- { id: socialworker, label: job.socialworker, sector: public, minEdu: tertiary, pct: [0.40, 0.70], weight: 0.25 }

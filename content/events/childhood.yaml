@@ -1,0 +1,115 @@
+# 어린 시절 (0~12세)
+
+- id: child.hunger
+  kind: happening
+  category: health
+  when: { age: [0, 5] }
+  # 5세 미만 사망률이 높은 나라, 형편이 어려운 집일수록
+  chance:
+    base: "clamp(country.u5mr / 400, 0.005, 0.2)"
+    odds:
+      - { by: household, beta: -0.6, center: 3 }
+      - { if: "!urban", x: 1.4 }
+  outcomes:
+    - effects: { stats: { health: -9, knowledge: -3 }, causeHint: { cause: infection, k: 1.3 }, log: ev.child.hunger, tags: [illness, loss] }
+  tone: heavy
+  source: [unigme.u5mr]
+
+- id: child.injury
+  kind: happening
+  category: health
+  when: { age: [1, 12] }
+  chance: 0.04
+  outcomes:
+    - weight: 3
+      effects: { stats: { health: -4 }, log: ev.child.injury.small, tags: [illness] }
+    - weight: 1
+      effects: { stats: { health: -9, happiness: -3 }, log: ev.child.injury.big, tags: [illness] }
+  tone: neutral
+
+- id: child.pet
+  kind: happening
+  category: family
+  when: { age: [4, 12] }
+  chance:
+    base: 0.05
+    odds:
+      - { by: household, beta: 0.3, center: 3 }
+  outcomes:
+    - effects: { stats: { happiness: 5, relations: 2 }, set: { pet: true }, log: ev.child.pet, tags: [joy] }
+  tone: light
+
+- id: child.grandparent
+  kind: happening
+  category: family
+  when: { age: [3, 10] }
+  chance: 0.06
+  outcomes:
+    - effects: { stats: { relations: 4, knowledge: 1 }, log: ev.child.grandparent, tags: [family] }
+  tone: light
+
+- id: child.talent
+  kind: happening
+  category: life
+  when: { age: [5, 12] }
+  chance: 0.04
+  outcomes:
+    - effects: { set: { talent: "'art'" }, stats: { happiness: 4 }, log: ev.child.talent.art, tags: [growth] }
+    - effects: { set: { talent: "'sport'" }, stats: { health: 3 }, log: ev.child.talent.sport, tags: [growth] }
+    - effects: { set: { talent: "'music'" }, stats: { happiness: 4 }, log: ev.child.talent.music, tags: [growth] }
+  tone: light
+
+- id: child.bullied
+  kind: happening
+  category: social
+  when: { age: [7, 15], if: "edu.inSchool" }
+  chance:
+    base: 0.03
+    odds:
+      - { by: stats.relations, beta: -0.04, center: 55 }
+  outcomes:
+    - effects: { stats: { happiness: -8, relations: -4 }, set: { bullied: true }, log: ev.child.bullied, tags: [setback] }
+  tone: heavy
+
+- id: child.labor
+  kind: happening
+  category: work
+  # 아이가 고르는 일이 아니므로 사건이다. 농업 비중이 크고 형편이 어려운 곳에서.
+  when: { age: [8, 14], if: "household <= 2 && country.income in ['LIC', 'LMC'] && !urban" }
+  chance: "clamp(country.agriEmployment / 12, 0, 0.06)"
+  outcomes:
+    - weight: 1
+      effects: { call: school.leave, stats: { knowledge: -3, health: -2 }, set: { childWork: true }, log: ev.child.labor.left, tags: [loss, work] }
+    - weight: 2
+      effects: { stats: { knowledge: -2, health: -1 }, set: { childWork: true }, log: ev.child.labor.after, tags: [work] }
+  tone: heavy
+
+- id: child.drought
+  kind: happening
+  category: life
+  when: { age: [0, 15], if: "!urban && country.income in ['LIC', 'LMC']" }
+  chance: "clamp(country.agriEmployment / 300, 0, 0.03)"
+  outcomes:
+    - effects: { stats: { health: -5, happiness: -5 }, log: ev.child.drought, tags: [loss] }
+  tone: heavy
+
+- id: child.moved
+  kind: happening
+  category: family
+  when: { age: [3, 12], if: "urban" }
+  chance: 0.03
+  outcomes:
+    - effects: { stats: { relations: -3, happiness: -1 }, log: ev.child.moved, tags: [new_start] }
+  tone: neutral
+
+- id: child.library
+  kind: happening
+  category: education
+  when: { age: [7, 12], if: "edu.inSchool" }
+  chance:
+    base: 0.04
+    odds:
+      - { by: stats.knowledge, beta: 0.04, center: 35 }
+  outcomes:
+    - effects: { stats: { knowledge: 4, happiness: 2 }, log: ev.child.library, tags: [growth] }
+  tone: light

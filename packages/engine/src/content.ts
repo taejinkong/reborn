@@ -113,6 +113,13 @@ export const Job = z.object({
   weight: z.number().positive().default(1),
   urban: z.boolean().optional(),
   formal: z.boolean().default(true),
+  /** 이 직업이 있는 곳 (없으면 어디에나) */
+  where: z.object({
+    regions: z.array(z.enum(['eap', 'eca', 'lac', 'mena', 'na', 'sa', 'ssa'])).optional(),
+    income: z.array(z.enum(['LIC', 'LMC', 'UMC', 'HIC'])).optional(),
+  }).strict().optional(),
+  /** 이 일을 하는 동안 사망 원인 가중치 배수 (예: { injury: 1.5 }) */
+  risks: z.record(z.string(), z.number().positive()).optional(),
 }).strict();
 
 export type HappeningDef = z.infer<typeof Happening>;
@@ -132,7 +139,7 @@ export const ContentBundle = z.object({
 export type Content = z.infer<typeof ContentBundle>;
 
 /** 표현식이 쓸 수 있는 최상위 이름과 함수 (린트 기준) */
-export const SCOPE_ROOTS = ['age', 'sex', 'year', 'stats', 'money', 'edu', 'job', 'family', 'flags', 'country', 'household', 'urban', 'habits', 'focus', 'retired', 'migrant', 'rates'];
+export const SCOPE_ROOTS = ['age', 'sex', 'year', 'stats', 'money', 'edu', 'job', 'family', 'flags', 'country', 'household', 'urban', 'habits', 'focus', 'retired', 'migrant', 'rates', 'jobSector'];
 export const SCOPE_FNS = ['has', 'clamp', 'min', 'max', 'rand', 'did', 'pct'];
 
 /** 콘텐츠 검증. 문제 목록을 돌려준다(빈 배열이면 통과). */

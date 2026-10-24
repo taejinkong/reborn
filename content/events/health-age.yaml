@@ -1,0 +1,190 @@
+# 건강과 노년. 사건은 직접 죽이지 않고 건강·사망 원인 가중치만 바꾼다.
+
+- id: health.back_pain
+  kind: happening
+  category: health
+  when: { age: [35, 75], if: "jobSector == 'industry' || jobSector == 'agri' || job == 'construction' || job == 'cleaner'" }
+  chance: 0.05
+  outcomes:
+    - effects: { stats: { health: -3, happiness: -2 }, set: { backPain: true }, log: ev.health.back, tags: [illness] }
+  tone: neutral
+
+- id: health.midlife_low
+  kind: decision
+  category: health
+  when: { age: [35, 65], once: false, cooldown: 12 }
+  chance:
+    base: 0.025
+    odds:
+      - { by: stats.happiness, beta: -0.05, center: 55 }
+      - { if: "flags.divorced || flags.widowed", x: 1.8 }
+  title: dec.mid.title
+  body: dec.mid.body
+  options:
+    - id: help
+      label: dec.mid.help
+      hint: dec.mid.help.hint
+      resolve:
+        effects: { stats: { happiness: 6, health: 2 }, money: { cash: "-money.income * country.oopHealth * 0.05" }, log: dec.mid.help.ok, tags: [care] }
+    - id: endure
+      label: dec.mid.endure
+      resolve:
+        effects: { stats: { happiness: -5, health: -3, relations: -2 }, log: dec.mid.endure.ok }
+  auto:
+    help: "40 + (1 - country.oopHealth) * 30"
+    endure: 45
+  tone: heavy
+
+- id: health.heart_scare
+  kind: happening
+  category: health
+  when: { age: [45, 95], if: "has('hypertension') || habits.smoker" }
+  chance: 0.025
+  outcomes:
+    - effects: { stats: { health: -14, happiness: -4 }, causeHint: { cause: cardio, k: 1.4 }, money: { cash: "-money.income * country.oopHealth * 0.4" }, log: ev.health.heart, tags: [illness] }
+  tone: heavy
+
+- id: health.stroke
+  kind: happening
+  category: health
+  when: { age: [55, 95] }
+  chance:
+    base: 0.008
+    odds:
+      - { if: "has('hypertension')", x: 2.5 }
+      - { if: "habits.smoker", x: 1.5 }
+  outcomes:
+    - effects: { stats: { health: -16, knowledge: -4, happiness: -5 }, causeHint: { cause: cardio, k: 1.5 }, log: ev.health.stroke, tags: [illness] }
+  tone: heavy
+
+- id: health.cancer_found
+  kind: decision
+  category: health
+  when: { age: [40, 90], if: "!flags.cancer" }
+  chance:
+    base: 0.006
+    odds:
+      - { if: "habits.smoker", x: 2 }
+      - { by: age, beta: 0.03, center: 60 }
+  title: dec.cancer.title
+  body: dec.cancer.body
+  options:
+    - id: treat
+      label: dec.cancer.treat
+      hint: dec.cancer.treat.hint
+      resolve:
+        effects: { set: { cancer: true }, money: { cash: "-money.income * country.oopHealth * 1.5", debt: "money.cash < 0 ? money.income * country.oopHealth : 0" } }
+        chance:
+          base: "country.income == 'HIC' ? 0.7 : country.income == 'UMC' ? 0.5 : 0.3"
+          normalize: false
+        success: { stats: { health: -6, happiness: 3 }, log: dec.cancer.treat.ok, tags: [care, recovery] }
+        fail: { stats: { health: -18, happiness: -6 }, causeHint: { cause: cancer, k: 4 }, log: dec.cancer.treat.fail, tags: [illness] }
+    - id: none
+      label: dec.cancer.none
+      resolve:
+        effects: { set: { cancer: true }, stats: { health: -20, happiness: -8 }, causeHint: { cause: cancer, k: 6 }, log: dec.cancer.none.ok, tags: [illness] }
+  auto:
+    treat: "50 + money.pct * 50 - country.oopHealth * 20"
+    none: "country.oopHealth * 30"
+  tone: heavy
+
+- id: health.fall
+  kind: happening
+  category: health
+  when: { age: [72, 110], once: false, cooldown: 4 }
+  chance:
+    base: 0.05
+    odds:
+      - { by: stats.health, beta: -0.04, center: 50 }
+  outcomes:
+    - effects: { stats: { health: -9, happiness: -3 }, causeHint: { cause: injury, k: 1.3 }, log: ev.health.fall, tags: [illness] }
+  tone: heavy
+
+- id: health.memory
+  kind: happening
+  category: health
+  when: { age: [70, 110], if: "!has('dementia')" }
+  chance:
+    base: "clamp((age - 65) / 600, 0.005, 0.06)"
+    odds:
+      - { by: stats.knowledge, beta: -0.02, center: 50 }
+  outcomes:
+    - effects: { condition: { add: dementia }, stats: { knowledge: -15, relations: -3 }, causeHint: { cause: dementia, k: 3 }, log: ev.health.memory, tags: [illness] }
+  tone: heavy
+
+- id: health.hearing
+  kind: happening
+  category: health
+  when: { age: [65, 110] }
+  chance: 0.04
+  outcomes:
+    - effects: { stats: { relations: -2, happiness: -1 }, log: ev.health.hearing, tags: [illness] }
+  tone: neutral
+
+- id: old.hobby
+  kind: happening
+  category: life
+  when: { age: [58, 95], if: "retired" }
+  chance: 0.12
+  outcomes:
+    - effects: { stats: { happiness: 5, health: 1 }, log: ev.old.hobby, tags: [joy] }
+  tone: light
+
+- id: old.learn
+  kind: happening
+  category: education
+  when: { age: [60, 85], if: "retired || job == null" }
+  chance: 0.04
+  outcomes:
+    - effects: { stats: { knowledge: 4, happiness: 3 }, log: ev.old.learn, tags: [growth] }
+  tone: light
+
+- id: old.friends_gone
+  kind: happening
+  category: social
+  when: { age: [70, 110], once: false, cooldown: 6 }
+  chance: 0.08
+  outcomes:
+    - effects: { stats: { relations: -4, happiness: -4 }, log: ev.old.friends_gone, tags: [loss] }
+  tone: heavy
+
+- id: old.live_with_children
+  kind: happening
+  category: family
+  when: { age: [70, 100], if: "family.children > 0 && !family.partner" }
+  chance: "country.income in ['LIC', 'LMC'] ? 0.15 : 0.04"
+  outcomes:
+    - effects: { stats: { relations: 5, happiness: 2 }, set: { livesWithChildren: true }, log: ev.old.live_with_children, tags: [family] }
+  tone: light
+
+- id: old.great_grandchild
+  kind: happening
+  category: family
+  when: { age: [70, 110], if: "flags.grandparent" }
+  chance: 0.06
+  outcomes:
+    - effects: { stats: { happiness: 6, relations: 3 }, log: ev.old.great_grandchild, tags: [family, joy] }
+  tone: light
+
+- id: old.lonely
+  kind: decision
+  category: social
+  when: { age: [68, 100], once: false, cooldown: 8, if: "!family.partner" }
+  chance:
+    base: 0.05
+    odds:
+      - { by: stats.relations, beta: -0.04, center: 50 }
+  title: dec.lonely.title
+  body: dec.lonely.body
+  options:
+    - id: out
+      label: dec.lonely.out
+      resolve:
+        effects: { stats: { relations: 5, happiness: 4, health: 1 }, log: dec.lonely.out.ok, tags: [joy] }
+    - id: home
+      label: dec.lonely.home
+      resolve:
+        effects: { stats: { relations: -3, happiness: -3 }, log: dec.lonely.home.ok }
+  auto:
+    out: "stats.health"
+    home: 40

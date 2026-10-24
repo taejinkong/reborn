@@ -10,7 +10,8 @@ const DIR = join(ROOT, 'content');
 function yamlFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((n) => {
     const p = join(dir, n);
-    if (statSync(p).isDirectory()) return n === 'build' ? [] : yamlFiles(p);
+    // build: 빌드 결과, drafts: 검수 전 초안, briefs: 생성 요청서
+    if (statSync(p).isDirectory()) return ['build', 'drafts', 'briefs'].includes(n) ? [] : yamlFiles(p);
     return n.endsWith('.yaml') ? [p] : [];
   });
 }
@@ -19,9 +20,16 @@ const raw = { events: [] as unknown[], focus: [] as unknown[], jobs: [] as unkno
 for (const f of yamlFiles(DIR)) {
   const rel = relative(DIR, f);
   const doc = parse(readFileSync(f, 'utf8'));
-  if (rel.startsWith('i18n/')) raw.i18n[rel.slice(5, -5)] = doc;
-  else if (rel === 'focus.yaml') raw.focus.push(...doc);
-  else if (rel === 'jobs.yaml') raw.jobs.push(...doc);
+  if (rel.startsWith('i18n/')) {
+    // i18n/ko.yaml 또는 i18n/ko/<이름>.yaml
+    const lang = rel.slice(5).split('/')[0].replace(/\.yaml$/, '');
+    const dict = (raw.i18n[lang] ??= {});
+    for (const [k, v] of Object.entries(doc as Record<string, string>)) {
+      if (k in dict) throw new Error(`문장 키 중복: ${k} (${rel})`);
+      dict[k] = v;
+    }
+  } else if (rel === 'focus.yaml') raw.focus.push(...doc);
+  else if (rel === 'jobs.yaml' || rel.startsWith('jobs/')) raw.jobs.push(...doc);
   else if (rel.startsWith('events/') || rel.startsWith('decisions/')) raw.events.push(...doc);
   else throw new Error(`어디에 속하는지 모르는 콘텐츠 파일: ${rel}`);
 }

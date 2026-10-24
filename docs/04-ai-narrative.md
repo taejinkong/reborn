@@ -80,3 +80,10 @@
 - 브리프 예: "남아시아 도시 저소득층 청년의 직업 10종과 각 직업 고유 사건 3개"
 - 생성 시 통계 필드와 출처를 명시하게 하고, 근거 없는 확률은 린트에서 경고.
 - 생성 프롬프트에 레퍼런스 서비스의 문장을 넣지 않는다 (클린룸).
+
+**구현 (5단계):** `scripts/contentgen.ts`
+- `npm run content:gen -- content/briefs/<이름>.yaml` → Claude(`claude-opus-5-5`, 적응형 사고, 스트리밍)가 YAML 초안 작성 → 기존 콘텐츠와 합쳐 스키마·린트 검사 → 실패하면 오류 목록을 돌려주고 한 번 더 → `content/drafts/`에 저장
+- 고정 지시문(작성 가이드 [content-style.md](content-style.md) + DSL 문서 + 예시 + 기존 id)은 프롬프트 캐시로 반복 비용을 줄인다
+- 거절 시 서버 측 대체 모델(`fallbacks: "default"`)을 쓴다
+- 사람이 초안을 검수한 뒤 `npm run content:merge -- content/drafts/<이름>.yaml` → `npm run content:report` → `npm run calibrate`
+- 인증: `ANTHROPIC_API_KEY` 또는 `ant auth login` (저장소에는 키를 두지 않는다)

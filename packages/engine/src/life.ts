@@ -85,6 +85,7 @@ export class Life {
         money: p.money,
         edu: { level: p.edu.level, rank: EDU_LEVELS.indexOf(p.edu.level), inSchool: !!p.edu.school, stage: p.edu.school?.stage ?? null },
         job: p.job,
+        jobSector: p.job ? this.world.jobs.get(p.job)?.sector ?? null : null,
         family: {
           partner: !!p.family.partner,
           married: !!p.family.partner?.married,
@@ -331,7 +332,11 @@ export class Life {
   private findJob(): JobDef | null {
     const p = this.p, c = this.country;
     const rank = EDU_LEVELS.indexOf(p.edu.level);
-    const eligible = this.world.content.jobs.filter((j) => EDU_LEVELS.indexOf(j.minEdu) <= rank && (j.urban === undefined || j.urban === p.urban));
+    const eligible = this.world.content.jobs.filter((j) =>
+      EDU_LEVELS.indexOf(j.minEdu) <= rank &&
+      (j.urban === undefined || j.urban === p.urban) &&
+      (!j.where?.regions || j.where.regions.includes(c.region)) &&
+      (!j.where?.income || j.where.income.includes(c.income)));
     // 농업 비중은 국가 통계, 나머지는 학력이 높을수록 고학력 일자리 선호
     const agriShare = c.agriEmployment * (p.urban ? 0.35 : 1.6);
     return this.rng.weighted(eligible, (j) => {
@@ -611,7 +616,8 @@ export class Life {
     this.observe?.({ type: 'mortality', age: p.age, sex: p.sex, country: p.country, raw: rawMortalityMultiplier(p, c) });
     const pDie = deathProbability(q, m);
     if (!this.rng.chance(pDie)) return false;
-    const cause = drawCause(p, c, this.rng, this.world.calibration(p.country));
+    const risks = p.job ? this.world.jobs.get(p.job)?.risks : undefined;
+    const cause = drawCause(p, c, this.rng, this.world.calibration(p.country), risks);
     p.dead = { age: p.age, year: p.year, cause };
     const sensitive = SENSITIVE_CAUSES.includes(cause);
     this.log(`sys.death.${cause}`, sensitive ? 'sensitive' : 'heavy', { age: p.age }, ['death']);

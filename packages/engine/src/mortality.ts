@@ -123,13 +123,13 @@ function baseSubWeight(cause: Cause, band: number, sex: Sex, c: Country, birthTh
   }
 }
 
-function personalK(cause: Cause, p: Person): number {
-  let k = p.causeHints[cause] ?? 1;
+function personalK(cause: Cause, p: Person, jobRisks?: Record<string, number>): number {
+  let k = (p.causeHints[cause] ?? 1) * (jobRisks?.[cause] ?? 1);
   if (p.habits.smoker) k *= cause === 'cancer' ? 1.5 : cause === 'respiratory' ? 2 : cause === 'cardio' ? 1.3 : 1;
   return k;
 }
 
-export function drawCause(p: Person, c: Country, rng: Rng, cal?: CountryCalibration): Cause {
+export function drawCause(p: Person, c: Country, rng: Rng, cal?: CountryCalibration, jobRisks?: Record<string, number>): Cause {
   const band = mortBand(p.age);
   const birthThisYear = p.flags.lastBirthYear === p.year;
   const weights: [Cause, number][] = [];
@@ -139,7 +139,7 @@ export function drawCause(p: Person, c: Country, rng: Rng, cal?: CountryCalibrat
     const total = base.reduce((s, w) => s + w, 0);
     if (!total) continue;
     const gw = GROUP_AGE[g][band] * (cal?.cause[g] ?? 1);
-    subs.forEach((x, i) => weights.push([x, (gw * base[i] * personalK(x, p)) / total]));
+    subs.forEach((x, i) => weights.push([x, (gw * base[i] * personalK(x, p, jobRisks)) / total]));
   }
   return rng.weighted(weights, ([, w]) => w)?.[0] ?? 'other';
 }

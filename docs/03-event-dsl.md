@@ -212,4 +212,7 @@ ai:
 
 - 구현된 효과: `stats`, `money(cash/debt/pct)`, `set/unset`, `edu`, `call`, `family(partner/marry/divorce)`, `condition`, `habit`, `schedule`, `causeHint`, `log`, `tags`
 - 내장 절차(`call`): `job.seek`, `job.quit`, `school.tertiary`, `school.graduate`, `retire`, `move.city`
-- 아직 없음: 연쇄 갈림길(`next`), 직업별 고유 사건(`events`), 도달성·확률 린트(시뮬레이션 기반)
+- 직업 필드: `where`(지역·소득그룹 제한), `risks`(일하는 동안 사망 원인 가중치). 직업별 사건은 `when.if: "job == 'nurse'"`나 `jobSector`로 건다
+- 파일 구성: `content/events/*.yaml`(사건·갈림길), `content/jobs/*.yaml`, `content/i18n/ko.yaml` + `content/i18n/ko/*.yaml`(문장, 키 중복 시 빌드 실패)
+- 시뮬레이션 기반 점검: `npm run content:report` (사건별 발생 비율, 한 번도 안 일어나는 사건, 한 삶의 분량) → [content-report.md](content-report.md)
+- 아직 없음: 연쇄 갈림길 전용 문법(`next`) — 지금은 `schedule`로 다음 해에 이어 붙인다

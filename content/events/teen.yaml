@@ -1,0 +1,141 @@
+# 청소년기 (13~19세)
+
+- id: teen.first_love
+  kind: decision
+  category: love
+  when: { age: [13, 18] }
+  chance: 0.12
+  title: dec.teen.love.title
+  body: dec.teen.love.body
+  options:
+    - id: tell
+      label: dec.teen.love.tell
+      resolve:
+        chance: 0.5
+        success: { stats: { happiness: 6, relations: 3 }, log: dec.teen.love.yes, tags: [love] }
+        fail: { stats: { happiness: -4 }, log: dec.teen.love.no }
+    - id: keep
+      label: dec.teen.love.keep
+      resolve:
+        effects: { stats: { happiness: -1 }, log: dec.teen.love.kept }
+  auto:
+    tell: "stats.relations"
+    keep: 50
+
+- id: teen.exam
+  kind: decision
+  category: education
+  when: { age: [15, 18], if: "edu.stage == 'secondary' && country.tertiaryEnroll > 0.4" }
+  chance: 0.35
+  title: dec.teen.exam.title
+  body: dec.teen.exam.body
+  options:
+    - id: grind
+      label: dec.teen.exam.grind
+      hint: dec.teen.exam.grind.hint
+      resolve:
+        effects: { stats: { knowledge: 6, happiness: -5, health: -2 }, log: dec.teen.exam.grind.ok }
+    - id: balance
+      label: dec.teen.exam.balance
+      resolve:
+        effects: { stats: { knowledge: 2, happiness: 1 }, log: dec.teen.exam.balance.ok }
+  auto:
+    grind: "household * 12"
+    balance: 45
+  source: [uis.tertiary]
+
+- id: teen.part_time
+  kind: decision
+  category: work
+  when: { age: [15, 19], if: "edu.inSchool && (urban || country.income in ['UMC', 'HIC'])" }
+  chance: 0.15
+  title: dec.teen.job.title
+  body: dec.teen.job.body
+  options:
+    - id: take
+      label: dec.teen.job.take
+      resolve:
+        effects: { money: { cash: "country.gdpPppPc * 0.03" }, stats: { knowledge: -1, relations: 2 }, set: { teenJob: true }, log: dec.teen.job.take.ok, tags: [work] }
+    - id: study
+      label: dec.teen.job.study
+      resolve:
+        effects: { stats: { knowledge: 2 }, log: dec.teen.job.study.ok }
+  auto:
+    take: "60 - household * 8"
+    study: 40
+
+- id: teen.dropout
+  kind: decision
+  category: education
+  when: { age: [14, 17], if: "edu.stage == 'secondary' && household <= 2 && country.income in ['LIC', 'LMC']" }
+  chance: 0.06
+  title: dec.teen.drop.title
+  body: dec.teen.drop.body
+  options:
+    - id: leave
+      label: dec.teen.drop.leave
+      resolve:
+        effects: { call: [school.leave, job.seek], money: { cash: "country.gdpPppPc * 0.02" }, log: dec.teen.drop.leave.ok, tags: [work, setback] }
+    - id: stay
+      label: dec.teen.drop.stay
+      resolve:
+        effects: { stats: { happiness: -2, knowledge: 1 }, log: dec.teen.drop.stay.ok }
+  auto:
+    leave: 40
+    stay: "40 + stats.knowledge / 2"
+
+- id: teen.team
+  kind: happening
+  category: life
+  when: { age: [12, 18], if: "flags.talent == 'sport'" }
+  chance: 0.2
+  outcomes:
+    - effects: { stats: { health: 4, relations: 4, happiness: 3 }, log: ev.teen.team, tags: [achievement] }
+  tone: light
+
+- id: teen.stage
+  kind: happening
+  category: life
+  when: { age: [12, 19], if: "flags.talent == 'art' || flags.talent == 'music'" }
+  chance: 0.2
+  outcomes:
+    - effects: { stats: { happiness: 5, relations: 2 }, log: ev.teen.stage, tags: [achievement] }
+  tone: light
+
+- id: teen.low_mood
+  kind: decision
+  category: health
+  when: { age: [13, 19] }
+  chance:
+    base: 0.05
+    odds:
+      - { by: stats.happiness, beta: -0.05, center: 55 }
+      - { if: "flags.bullied", x: 1.8 }
+  title: dec.teen.mood.title
+  body: dec.teen.mood.body
+  options:
+    - id: talk
+      label: dec.teen.mood.talk
+      hint: dec.teen.mood.talk.hint
+      resolve:
+        effects: { stats: { happiness: 5, relations: 3 }, log: dec.teen.mood.talk.ok, tags: [care] }
+    - id: alone
+      label: dec.teen.mood.alone
+      resolve:
+        effects: { stats: { happiness: -4, health: -1 }, log: dec.teen.mood.alone.ok }
+  auto:
+    talk: "stats.relations"
+    alone: 40
+  tone: heavy
+
+- id: teen.phone
+  kind: happening
+  category: life
+  when: { age: [11, 16] }
+  chance:
+    base: "country.income == 'HIC' ? 0.35 : country.income == 'UMC' ? 0.2 : 0.06"
+    odds:
+      - { by: household, beta: 0.4, center: 3 }
+  outcomes:
+    - effects: { stats: { happiness: 3, relations: 1 }, log: ev.teen.phone, tags: [joy] }
+  tone: light

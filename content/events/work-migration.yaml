@@ -1,0 +1,186 @@
+# 직업별 장면과 이주 생활
+
+- id: job.harvest_good
+  kind: happening
+  category: work
+  when: { age: [14, 80], once: false, cooldown: 3, if: "jobSector == 'agri'" }
+  chance: 0.08
+  outcomes:
+    - effects: { money: { cash: "money.income * 0.3" }, stats: { happiness: 4 }, log: ev.job.harvest_good, tags: [luck, work] }
+  tone: light
+
+- id: job.harvest_bad
+  kind: happening
+  category: work
+  when: { age: [14, 80], once: false, cooldown: 3, if: "jobSector == 'agri'" }
+  chance: "country.income in ['LIC', 'LMC'] ? 0.08 : 0.03"
+  outcomes:
+    - effects: { money: { cash: "-money.income * 0.3", debt: "money.cash < 0 ? money.income * 0.2 : 0" }, stats: { happiness: -5, health: -1 }, log: ev.job.harvest_bad, tags: [setback, work] }
+  tone: neutral
+
+- id: job.overtime
+  kind: decision
+  category: work
+  when: { age: [18, 60], once: false, cooldown: 5, if: "jobSector == 'industry'" }
+  chance: 0.1
+  title: dec.overtime.title
+  body: dec.overtime.body
+  options:
+    - id: yes
+      label: dec.overtime.yes
+      resolve:
+        effects: { money: { cash: "money.income * 0.2" }, stats: { health: -3, relations: -2 }, log: dec.overtime.yes.ok, tags: [work] }
+    - id: no
+      label: dec.overtime.no
+      resolve:
+        effects: { stats: { relations: 2, happiness: 1 }, log: dec.overtime.no.ok }
+  auto:
+    yes: "70 - money.pct * 60"
+    no: 40
+
+- id: job.teacher_thanks
+  kind: happening
+  category: work
+  when: { age: [25, 70], if: "job == 'teacher' || job == 'professor'" }
+  chance: 0.12
+  outcomes:
+    - effects: { stats: { happiness: 6 }, log: ev.job.teacher_thanks, tags: [achievement, work] }
+  tone: light
+
+- id: job.care_night
+  kind: happening
+  category: work
+  when: { age: [20, 65], once: false, cooldown: 5, if: "job == 'nurse' || job == 'carer' || job == 'midwife' || job == 'healthworker'" }
+  chance: 0.15
+  outcomes:
+    - effects: { stats: { health: -3, happiness: -1 }, log: ev.job.care_night, tags: [work] }
+  tone: neutral
+
+- id: job.doctor_loss
+  kind: happening
+  category: work
+  when: { age: [28, 70], if: "job == 'doctor' || job == 'nurse' || job == 'firefighter'" }
+  chance: 0.08
+  outcomes:
+    - effects: { stats: { happiness: -6 }, log: ev.job.doctor_loss, tags: [work, loss] }
+  tone: heavy
+
+- id: job.startup
+  kind: decision
+  category: work
+  when: { age: [24, 45], if: "job == 'developer' || job == 'analyst' || job == 'designer' || job == 'marketer'" }
+  chance: 0.12
+  title: dec.startup.title
+  body: dec.startup.body
+  options:
+    - id: join
+      label: dec.startup.join
+      hint: dec.startup.join.hint
+      resolve:
+        chance: 0.3
+        success: { money: { pct: 0.15, cash: "money.income" }, stats: { happiness: 7 }, log: dec.startup.ok, tags: [achievement, work] }
+        fail: { call: job.quit, stats: { happiness: -6 }, log: dec.startup.fail, tags: [setback] }
+    - id: stay
+      label: dec.startup.stay
+      resolve:
+        effects: { log: dec.startup.stay.ok }
+  auto:
+    join: 35
+    stay: 65
+
+- id: job.road_scare
+  kind: happening
+  category: work
+  when: { age: [18, 70], once: false, cooldown: 4, if: "job == 'driver' || job == 'rider'" }
+  chance: "clamp(country.roadDeaths / 300, 0.02, 0.15)"
+  outcomes:
+    - effects: { stats: { happiness: -4, health: -2 }, log: ev.job.road_scare, tags: [work] }
+  tone: neutral
+  source: [who.road_deaths]
+
+- id: job.mine_collapse
+  kind: happening
+  category: work
+  when: { age: [16, 65], if: "job == 'miner'" }
+  chance: 0.04
+  outcomes:
+    - effects: { stats: { health: -15, happiness: -8 }, log: ev.job.mine_collapse, tags: [work, loss] }
+  tone: heavy
+
+- id: job.shop_rival
+  kind: decision
+  category: work
+  when: { age: [25, 70], once: false, cooldown: 8, if: "job == 'shopowner' || job == 'eatery' || job == 'streetvendor'" }
+  chance: 0.08
+  title: dec.rival.title
+  body: dec.rival.body
+  options:
+    - id: invest
+      label: dec.rival.invest
+      resolve:
+        effects: { money: { cash: "-money.income * 0.3" } }
+        chance: 0.55
+        success: { money: { pct: 0.05 }, stats: { happiness: 3 }, log: dec.rival.invest.ok, tags: [work] }
+        fail: { money: { pct: -0.05 }, stats: { happiness: -4 }, log: dec.rival.invest.fail, tags: [setback] }
+    - id: wait
+      label: dec.rival.wait
+      resolve:
+        effects: { money: { pct: -0.04 }, stats: { happiness: -2 }, log: dec.rival.wait.ok }
+  auto:
+    invest: "money.pct * 100"
+    wait: 45
+
+- id: migration.homesick
+  kind: happening
+  category: migration
+  when: { age: [0, 100], once: false, cooldown: 6, if: "migrant" }
+  chance: 0.12
+  outcomes:
+    - effects: { stats: { happiness: -4 }, log: ev.mig.homesick, tags: [migration] }
+  tone: neutral
+
+- id: migration.language
+  kind: happening
+  category: migration
+  when: { age: [5, 80], if: "migrant && age - flags.migratedAge >= 2" }
+  chance: 0.25
+  outcomes:
+    - effects: { stats: { knowledge: 4, relations: 3 }, money: { pct: 0.04 }, log: ev.mig.language, tags: [migration, growth] }
+  tone: light
+
+- id: migration.discrimination
+  kind: happening
+  category: migration
+  when: { age: [5, 100], once: false, cooldown: 8, if: "migrant" }
+  chance: 0.07
+  outcomes:
+    - effects: { stats: { happiness: -6, relations: -2 }, log: ev.mig.discrimination, tags: [migration, setback] }
+  tone: heavy
+
+- id: migration.remittance
+  kind: happening
+  category: migration
+  when: { age: [18, 70], once: false, cooldown: 3, if: "migrant && job != null && (family.motherAlive || family.fatherAlive)" }
+  chance: 0.3
+  outcomes:
+    - effects: { money: { cash: "-money.income * 0.1" }, stats: { relations: 3, happiness: 2 }, log: ev.mig.remittance, tags: [migration, family] }
+  tone: light
+
+- id: migration.citizenship
+  kind: happening
+  category: migration
+  when: { age: [18, 90], if: "migrant && !flags.refugee && age - flags.migratedAge >= 6" }
+  chance: 0.12
+  outcomes:
+    - effects: { stats: { happiness: 4 }, set: { naturalized: true }, log: ev.mig.citizenship, tags: [migration, milestone] }
+  tone: light
+
+- id: migration.camp_school
+  kind: happening
+  category: migration
+  when: { age: [6, 17], if: "flags.refugee && !edu.inSchool && edu.rank <= 1" }
+  chance: 0.25
+  outcomes:
+    - effects: { stats: { knowledge: 3, happiness: 3 }, log: ev.mig.camp_school, tags: [migration, growth] }
+  tone: light
+  source: [unhcr2024]

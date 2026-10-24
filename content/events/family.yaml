@@ -1,0 +1,101 @@
+# 가족 (결혼·출산·이혼의 확률은 보정된 엔진이 정하고, 여기서는 그 위의 장면을 더한다)
+
+- id: family.child_school
+  kind: happening
+  category: family
+  when: { age: [22, 55], if: "family.children > 0" }
+  chance: 0.15
+  outcomes:
+    - effects: { stats: { happiness: 4, relations: 2 }, log: ev.family.child_school, tags: [family, milestone] }
+  tone: light
+
+- id: family.child_sick
+  kind: happening
+  category: family
+  when: { age: [18, 55], once: false, cooldown: 6, if: "family.children > 0" }
+  chance:
+    base: "clamp(country.u5mr / 500, 0.01, 0.12)"
+  outcomes:
+    - effects: { stats: { happiness: -5 }, money: { cash: "-money.income * country.oopHealth * 0.2" }, log: ev.family.child_sick, tags: [family, illness] }
+  tone: neutral
+
+- id: family.anniversary
+  kind: happening
+  category: family
+  when: { age: [30, 90], once: false, cooldown: 10, if: "family.married && age - flags.marriedAge >= 10" }
+  chance: 0.25
+  outcomes:
+    - effects: { stats: { happiness: 4, relations: 3 }, log: ev.family.anniversary, tags: [love] }
+  tone: light
+
+- id: family.care_parent
+  kind: decision
+  category: family
+  when: { age: [40, 72], if: "family.motherAlive || family.fatherAlive" }
+  chance: 0.08
+  title: dec.care.title
+  body: dec.care.body
+  options:
+    - id: home
+      label: dec.care.home
+      hint: dec.care.home.hint
+      resolve:
+        effects: { stats: { relations: 6, happiness: -3, health: -2 }, money: { cash: "-money.income * 0.1" }, log: dec.care.home.ok, tags: [family, care] }
+    - id: help
+      label: dec.care.help
+      hint: dec.care.help.hint
+      resolve:
+        effects: { stats: { relations: -1 }, money: { cash: "-money.income * 0.3" }, log: dec.care.help.ok, tags: [family] }
+  auto:
+    home: "country.income in ['LIC', 'LMC'] ? 80 : 45"
+    help: "money.pct * 80"
+
+- id: family.empty_nest
+  kind: happening
+  category: family
+  when: { age: [45, 70], if: "family.children > 0" }
+  chance: 0.06
+  outcomes:
+    - effects: { stats: { happiness: -2, relations: -1 }, log: ev.family.empty_nest, tags: [family] }
+  tone: neutral
+
+- id: family.grandchild
+  kind: happening
+  category: family
+  when: { age: [42, 85], once: false, cooldown: 4, if: "family.children > 0" }
+  chance: "clamp(country.tfr / 40, 0.02, 0.15)"
+  outcomes:
+    - effects: { stats: { happiness: 6, relations: 4 }, set: { grandparent: true }, log: ev.family.grandchild, tags: [family, joy] }
+  tone: light
+
+- id: family.argument
+  kind: decision
+  category: family
+  when: { age: [20, 70], once: false, cooldown: 8, if: "family.married" }
+  chance:
+    base: 0.04
+    odds:
+      - { by: stats.relations, beta: -0.04, center: 55 }
+  title: dec.fight.title
+  body: dec.fight.body
+  options:
+    - id: talk
+      label: dec.fight.talk
+      resolve:
+        effects: { stats: { relations: 4, happiness: 1 }, log: dec.fight.talk.ok, tags: [love] }
+    - id: silent
+      label: dec.fight.silent
+      resolve:
+        effects: { stats: { relations: -5, happiness: -3 }, log: dec.fight.silent.ok }
+  auto:
+    talk: "stats.relations"
+    silent: 35
+
+- id: family.inheritance
+  kind: happening
+  category: family
+  when: { age: [30, 80], if: "!family.fatherAlive && !family.motherAlive && household >= 4" }
+  chance: 0.3
+  outcomes:
+    - effects: { money: { cash: "country.gdpPppPc * household * 0.6" }, stats: { happiness: 1 }, log: ev.family.inheritance, tags: [family] }
+  tone: neutral

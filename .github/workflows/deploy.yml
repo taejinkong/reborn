@@ -28,6 +28,8 @@ jobs:
       - run: npm run build:content && npm run data -w @reborn/web
       - run: npm run typecheck
       - run: npm test
+      # 한 번도 일어나지 않는 사건이 있으면 실패
+      - run: node scripts/content-report.ts 2000 --strict
       - run: npm run build
         env:
           PAGES_BASE: /reborn

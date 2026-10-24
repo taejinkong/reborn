@@ -16,6 +16,9 @@ npm run dev         # 웹앱 (http://localhost:3000)
 npm run dev:demo    # 엔진 데모 (http://localhost:5173)
 npm run calibrate   # 국가별 몬테카를로 보정 (약 8분, 콘텐츠·통계를 바꾼 뒤)
 npm run audit       # 시뮬레이션 vs 실제 통계 비교표 → docs/model-audit.md
+npm run content:report               # 사건별 발생 비율·분량 점검 → docs/content-report.md
+npm run content:gen -- <brief.yaml>  # Claude로 콘텐츠 초안 생성 (API 인증 필요) → content/drafts/
+npm run content:merge -- <draft.yaml> # 검수한 초안을 content/로
 ```
 
 | 경로 | 내용 |

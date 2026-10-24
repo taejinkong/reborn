@@ -10,6 +10,9 @@
     "build:content": "node scripts/build-content.ts",
     "test": "npm run build:content && npm test -w @reborn/engine",
     "calibrate": "npm run build:content && node scripts/calibrate.ts",
+    "content:gen": "npm run build:content && node scripts/contentgen.ts gen",
+    "content:merge": "node scripts/contentgen.ts merge",
+    "content:report": "npm run build:content && node scripts/content-report.ts",
     "audit": "npm run build:content && node scripts/audit.ts",
     "typecheck": "tsc -p packages/engine --noEmit && npm run typecheck -w @reborn/web",
     "dev": "npm run build:content && npm run dev -w @reborn/web",
@@ -18,6 +21,7 @@
     "build:demo": "BASE_PATH=${PAGES_BASE:-}/demo/ npm run build -w @reborn/demo && rm -rf apps/web/out/demo && cp -r apps/demo/dist apps/web/out/demo"
   },
   "devDependencies": {
+    "@anthropic-ai/sdk": "^1.3.0",
     "typescript": "^5.6.0",
     "yaml": "^2.5.0"
   }

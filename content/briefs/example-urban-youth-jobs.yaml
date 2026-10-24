@@ -1,0 +1,8 @@
+# 예시 브리프. 실행: npm run content:gen -- content/briefs/example-urban-youth-jobs.yaml
+name: urban-youth-jobs
+goal: 저소득·중하위소득 국가 도시 청년이 할 수 있는 직업 8종과, 직업마다 그 일에서 생길 법한 사건 1~2개를 만든다.
+count: 8
+notes:
+  - 직업은 where.income 으로 LIC, LMC 에만 나오게 한다.
+  - 사고 위험이 큰 일은 risks 로 사망 원인 가중치를 준다 (예: injury 1.4).
+  - 사건 확률은 연 2~6% 사이로 작게 두고, 근거 통계가 있으면 country.* 를 쓴다.
